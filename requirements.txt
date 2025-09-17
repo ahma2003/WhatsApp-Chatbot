@@ -6,4 +6,4 @@ chromadb
 sentence-transformers
 requests
 gunicorn
-psycopg2-binary
+psycopg2-binary==2.9.7
