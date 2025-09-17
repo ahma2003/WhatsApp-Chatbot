@@ -57,7 +57,7 @@ class CustomerMemoryManager:
                 print(f"🎯 العميل موجود في الذاكرة: {phone_number}")
                 return self.customer_cache[phone_number]
             
-            # البحث في قاعدة البيانات
+            # البحث في قاعدة البيانات`
             if phone_number in self.customers_data:
                 customer_data = self.customers_data[phone_number].copy()
                 # إضافة العميل للـ cache
@@ -523,7 +523,7 @@ class SmartResponseGenerator:
 المعلومات: {context}"""
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
