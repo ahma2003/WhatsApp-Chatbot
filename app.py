@@ -21,7 +21,6 @@ ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN')
 VERIFY_TOKEN = os.environ.get('WHATSAPP_VERIFY_TOKEN')
 PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-DATABASE_URL = "postgresql://postgres:yJFsFKdulCLCFpPvBEjLQaiJcFJNijar@shinkansen.proxy.rlwy.net:40736/railway"
 DATABASE_URL = os.environ.get('DATABASE_URL')
 gen=False
 app = Flask(__name__)
