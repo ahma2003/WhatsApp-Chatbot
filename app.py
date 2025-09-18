@@ -26,6 +26,7 @@ gen=False
 app = Flask(__name__)
 
 # --- 🧠 نظام Memory العملاء الذكي - محدث للعمل مع PostgreSQL ---
+
 class CustomerMemoryManager:
     def __init__(self):
         self.customer_cache = {}  # Cache للعملاء النشطين
@@ -33,6 +34,51 @@ class CustomerMemoryManager:
         self.memory_lock = threading.Lock()
         self.db_pool = self.init_database_connection()
         print(f"📊 تم الاتصال بقاعدة البيانات PostgreSQL")
+    
+    def inspect_database_schema(self):
+        """فحص بنية قاعدة البيانات لمعرفة أسماء الأعمدة الصحيحة"""
+        if not self.db_pool:
+            return
+        
+        try:
+            conn = self.db_pool.getconn()
+            with conn.cursor() as cur:
+                # فحص جداول قاعدة البيانات
+                tables = ['customers', 'past_services', 'current_requests']
+                
+                for table in tables:
+                    try:
+                        cur.execute(f"""
+                            SELECT column_name, data_type 
+                            FROM information_schema.columns 
+                            WHERE table_name = '{table}'
+                            ORDER BY ordinal_position;
+                        """)
+                        columns = cur.fetchall()
+                        print(f"\n📋 جدول {table}:")
+                        for col_name, col_type in columns:
+                            print(f"  - {col_name}: {col_type}")
+                            
+                    except Exception as e:
+                        print(f"❌ خطأ في فحص جدول {table}: {e}")
+                        
+            self.db_pool.putconn(conn)
+            
+        except Exception as e:
+            print(f"❌ خطأ في فحص قاعدة البيانات: {e}")
+            if conn:
+                self.db_pool.putconn(conn)
+
+    def normalize_phone_number(self, phone_number: str) -> str:
+        """تطبيع رقم الهاتف - إزالة علامة + والمسافات"""
+        if not phone_number:
+            return phone_number
+        
+        # إزالة علامة + والمسافات والرموز الخاصة
+        normalized = phone_number.replace("+", "").replace(" ", "").replace("-", "")
+        
+        print(f"📱 تطبيع الرقم: {phone_number} -> {normalized}")
+        return normalized
     
     def init_database_connection(self):
         """إنشاء pool للاتصال بقاعدة البيانات"""
@@ -50,21 +96,31 @@ class CustomerMemoryManager:
     
     def get_customer_info(self, phone_number: str) -> Optional[dict]:
         """جلب معلومات العميل من الذاكرة أو قاعدة البيانات"""
+        # تطبيع رقم الهاتف
+        normalized_phone = self.normalize_phone_number(phone_number)
+        
         with self.memory_lock:
-            # البحث في الـ cache أولاً
+            # البحث في الـ cache أولاً (نبحث بالرقم الأصلي والمطبع)
+            cache_key = None
             if phone_number in self.customer_cache:
-                print(f"🎯 العميل موجود في الذاكرة: {phone_number}")
-                return self.customer_cache[phone_number]
+                cache_key = phone_number
+            elif normalized_phone in self.customer_cache:
+                cache_key = normalized_phone
             
-            # البحث في قاعدة البيانات
-            customer_data = self.load_customer_from_db(phone_number)
+            if cache_key:
+                print(f"🎯 العميل موجود في الذاكرة: {cache_key}")
+                return self.customer_cache[cache_key]
+            
+            # البحث في قاعدة البيانات بالرقم المطبع
+            customer_data = self.load_customer_from_db(normalized_phone)
             if customer_data:
-                # إضافة العميل للـ cache
-                self.customer_cache[phone_number] = customer_data
+                # إضافة العميل للـ cache بكلا الصيغتين
+                self.customer_cache[phone_number] = customer_data  # الرقم الأصلي
+                self.customer_cache[normalized_phone] = customer_data  # الرقم المطبع
                 print(f"✅ تم تحميل العميل للذاكرة: {customer_data.get('name', 'غير معروف')}")
                 return customer_data
             
-            print(f"🆕 عميل جديد: {phone_number}")
+            print(f"🆕 عميل جديد: {normalized_phone}")
             return None
     
     def load_customer_from_db(self, phone_number: str) -> Optional[dict]:
@@ -72,68 +128,82 @@ class CustomerMemoryManager:
         if not self.db_pool:
             return None
         
+        # التأكد من أن الرقم مطبع قبل البحث
+        normalized_phone = self.normalize_phone_number(phone_number)
+        
         try:
             conn = self.db_pool.getconn()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # جلب بيانات العميل الأساسية
+                # جلب بيانات العميل الأساسية - البحث بالرقم المطبع
                 cur.execute("""
                     SELECT * FROM customers WHERE phone_number = %s
-                """, (phone_number,))
+                """, (normalized_phone,))
                 customer = cur.fetchone()
                 
                 if not customer:
+                    print(f"🔍 لم يتم العثور على العميل: {normalized_phone}")
+                    self.db_pool.putconn(conn)
                     return None
                 
                 customer_dict = dict(customer)
+                print(f"✅ تم العثور على العميل: {customer_dict.get('name', 'غير معروف')}")
                 
                 # جلب الخدمات السابقة
                 cur.execute("""
-                    SELECT * FROM past_services WHERE customer_phone = %s
+                    SELECT * FROM past_services WHERE phone_number = %s
                     ORDER BY contract_date DESC
-                """, (phone_number,))
+                """, (normalized_phone,))
                 past_services = [dict(service) for service in cur.fetchall()]
                 customer_dict['past_services'] = past_services
+                print(f"📚 عدد الخدمات السابقة: {len(past_services)}")
                 
-                # جلب الطلبات الحالية
+                # جلب الطلبات الحالية  
                 cur.execute("""
-                    SELECT * FROM current_requests WHERE customer_phone = %s
-                    ORDER BY created_at DESC
-                """, (phone_number,))
+                    SELECT * FROM current_requests WHERE phone_number = %s
+                    ORDER BY id DESC
+                """, (normalized_phone,))
                 current_requests = [dict(request) for request in cur.fetchall()]
                 customer_dict['current_requests'] = current_requests
+                print(f"⏳ عدد الطلبات الحالية: {len(current_requests)}")
                 
                 self.db_pool.putconn(conn)
                 return customer_dict
                 
         except Exception as e:
-            print(f"❌ خطأ في جلب بيانات العميل: {e}")
+            print(f"❌ خطأ في جلب بيانات العميل {normalized_phone}: {e}")
             if conn:
                 self.db_pool.putconn(conn)
             return None
     
     def add_conversation_message(self, phone_number: str, user_message: str, bot_response: str):
         """إضافة رسالة لتاريخ المحادثة"""
+        # استخدام الرقم المطبع كمفتاح للمحادثة
+        normalized_phone = self.normalize_phone_number(phone_number)
+        
         with self.memory_lock:
-            if phone_number not in self.conversation_history:
-                self.conversation_history[phone_number] = []
+            if normalized_phone not in self.conversation_history:
+                self.conversation_history[normalized_phone] = []
             
-            self.conversation_history[phone_number].append({
+            self.conversation_history[normalized_phone].append({
                 'timestamp': datetime.now().isoformat(),
                 'user_message': user_message,
                 'bot_response': bot_response
             })
             
             # الاحتفاظ بآخر 10 رسائل فقط لكل عميل (توفير الذاكرة)
-            if len(self.conversation_history[phone_number]) > 10:
-                self.conversation_history[phone_number] = self.conversation_history[phone_number][-10:]
+            if len(self.conversation_history[normalized_phone]) > 10:
+                self.conversation_history[normalized_phone] = self.conversation_history[normalized_phone][-10:]
+                print(f"🧹 تنظيف تاريخ المحادثة للعميل: {normalized_phone}")
     
     def get_conversation_context(self, phone_number: str) -> str:
         """جلب سياق المحادثة السابقة"""
+        normalized_phone = self.normalize_phone_number(phone_number)
+        
         with self.memory_lock:
-            if phone_number not in self.conversation_history:
+            if normalized_phone not in self.conversation_history:
                 return ""
             
-            recent_messages = self.conversation_history[phone_number][-3:]  # آخر 3 رسائل
+            recent_messages = self.conversation_history[normalized_phone][-3:]  # آخر 3 رسائل
             context = ""
             
             for msg in recent_messages:
@@ -159,7 +229,8 @@ class CustomerMemoryManager:
         if gender == 'ذكر':
             summary += " (أخونا الكريم)"
         elif gender == 'أنثى':
-            gen=True
+            global gen
+            gen = True
             summary += " (أختنا الكريمة)"
         
         # الخدمات السابقة
@@ -167,6 +238,10 @@ class CustomerMemoryManager:
             summary += f"\n🏆 له تعامل سابق معنا - عدد {len(past_services)} خدمة"
             latest_service = past_services[0]  # أحدث خدمة (مرتبة DESC)
             summary += f"\n📝 آخر خدمة: {latest_service.get('job_title', '')} - {latest_service.get('worker_name', '')} ({latest_service.get('nationality', '')})"
+            
+            # إضافة تقييم آخر خدمة إن وجد
+            if latest_service.get('rating'):
+                summary += f" - تقييم: {latest_service.get('rating')}/5"
         
         # الطلبات الحالية
         if current_requests:
@@ -186,13 +261,21 @@ class CustomerMemoryManager:
     
     def cleanup_old_cache(self):
         """تنظيف الذاكرة من العملاء القدامى"""
-        # هنحتفظ بـ 50 عميل فقط في الـ cache
-        if len(self.customer_cache) > 50:
+        # هنحتفظ بـ 100 عنصر فقط في الـ cache (50 عميل × 2 مفتاح لكل عميل)
+        if len(self.customer_cache) > 100:
             # نحذف النصف الأول (oldest)
-            keys_to_remove = list(self.customer_cache.keys())[:25]
+            keys_to_remove = list(self.customer_cache.keys())[:50]
             for key in keys_to_remove:
                 del self.customer_cache[key]
             print("🧹 تنظيف ذاكرة العملاء")
+    
+    def get_customer_stats(self) -> dict:
+        """إحصائيات سريعة للذاكرة"""
+        return {
+            'cached_customers': len(self.customer_cache),
+            'active_conversations': len(self.conversation_history),
+            'db_connection_active': self.db_pool is not None
+        }
 
 # --- 🚀 نظام ذاكرة محادثات محسّن ---
 class ConversationManager:
@@ -767,11 +850,120 @@ except Exception as e:
 # --- 🚀 المسارات الرئيسية ---
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
-    # [نفس الكود السابق - لم يتغير]
-    pass
+    if request.method == 'GET':
+        mode = request.args.get('hub.mode')
+        token = request.args.get('hub.verify_token')
+        challenge = request.args.get('hub.challenge')
+        
+        if mode == 'subscribe' and token == VERIFY_TOKEN:
+            return challenge, 200
+        return 'فشل التحقق', 403
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        
+        if not data or 'entry' not in data:
+            return 'OK', 200
+        
+        # معالجة سريعة للرسائل
+        for entry in data['entry']:
+            for change in entry.get('changes', []):
+                value = change.get('value', {})
+                
+                if 'messages' not in value:
+                    continue
+                
+                for message_data in value['messages']:
+                    if message_data.get('type') != 'text':
+                        continue
+                    
+                    message_id = message_data.get('id', '')
+                    phone_number = message_data.get('from', '')
+                    user_message = message_data.get('text', {}).get('body', '').strip()
+                    
+                    if not phone_number or not user_message:
+                        continue
+                    
+                    if whatsapp_handler.is_duplicate_message(message_id):
+                        print(f"⚠️ رسالة مكررة: {message_id}")
+                        continue
+                    
+                    if whatsapp_handler.check_rate_limit(phone_number):
+                        print(f"⚠️ سرعة عالية من: {phone_number}")
+                        continue
+                    
+                    # معالجة فورية في thread منفصل
+                    thread = threading.Thread(
+                        target=process_user_message_with_memory,
+                        args=(phone_number, user_message),
+                        daemon=True
+                    )
+                    thread.start()
+        
+        return 'OK', 200
 
 def process_user_message_with_memory(phone_number: str, user_message: str):
-    # [نفس الكود السابق - لم يتغير]
+    """معالجة سريعة للرسائل مع الذاكرة الشخصية"""
+    start_time = time.time()
+    
+    try:
+        # إدارة المحادثة مع الذاكرة
+        is_first = conversation_manager.is_first_message(phone_number)
+        
+        if is_first:
+            conversation_manager.register_conversation(phone_number)
+            print(f"🆕 محادثة جديدة: {phone_number}")
+        else:
+            conversation_manager.update_activity(phone_number)
+        
+        # جلب معلومات العميل من الذاكرة
+        customer_info = customer_memory.get_customer_info(phone_number)
+        if customer_info:
+            print(f"👤 عميل مسجل: {customer_info.get('name', 'غير معروف')}")
+        
+        # توليد الرد الذكي مع الذاكرة
+        if response_generator:
+            bot_response, should_send_image, image_url = response_generator.generate_response(
+                user_message, phone_number, is_first
+            )
+            
+            # إرسال الرد
+            if should_send_image and image_url:
+                success = whatsapp_handler.send_image_with_text(phone_number, bot_response, image_url)
+            else:
+                success = whatsapp_handler.send_message(phone_number, bot_response)
+        else:
+            # نظام احتياطي أساسي مع الذاكرة
+            customer_name = customer_info.get('name', '') if customer_info else None
+            
+            if quick_system.is_greeting_message(user_message):
+                bot_response = quick_system.get_welcome_response(customer_name)
+                success = whatsapp_handler.send_message(phone_number, bot_response)
+            elif quick_system.is_thanks_message(user_message):
+                bot_response = quick_system.get_thanks_response(customer_name)
+                success = whatsapp_handler.send_message(phone_number, bot_response)
+            elif quick_system.is_price_inquiry(user_message):
+                bot_response, image_url = quick_system.get_price_response()
+                success = whatsapp_handler.send_image_with_text(phone_number, bot_response, image_url)
+            else:
+                if customer_name:
+                    bot_response = f"أهلاً أخونا {customer_name} الكريم في مكتب الركائز البشرية! 🌟\nسيتواصل معك متخصص قريباً.\n📞 0556914447"
+                else:
+                    bot_response = "أهلاً بك في مكتب الركائز البشرية! 🌟\nسيتواصل معك متخصص قريباً.\n📞 0556914447"
+                success = whatsapp_handler.send_message(phone_number, bot_response)
+            
+            # إضافة للذاكرة حتى في النظام الاحتياطي
+            customer_memory.add_conversation_message(phone_number, user_message, bot_response)
+        
+        # إحصائيات سريعة
+        response_time = time.time() - start_time
+        customer_status = "عميل مسجل" if customer_info else "عميل جديد"
+        print(f"✅ استجابة في {response_time:.2f}s لـ {phone_number} ({customer_status})")
+        
+    except Exception as e:
+        print(f"❌ خطأ: {e}")
+        whatsapp_handler.send_message(phone_number, "عذراً، حدث خطأ تقني. 📞 0556914447")
+
     pass
 
 @app.route('/')
@@ -842,8 +1034,72 @@ def status():
 
 @app.route('/test-customer/<phone_number>/<message>')
 def test_customer_memory(phone_number, message):
-    # [نفس الكود السابق - لم يتغير]
-    pass
+    """اختبار نظام الذاكرة للعملاء"""
+    start_time = time.time()
+    
+    # جلب معلومات العميل
+    customer_info = customer_memory.get_customer_info(phone_number)
+    
+    # اختبار الردود السريعة
+    is_greeting = quick_system.is_greeting_message(message)
+    is_thanks = quick_system.is_thanks_message(message)
+    is_price = quick_system.is_price_inquiry(message)
+    
+    processing_time = time.time() - start_time
+    
+    result = {
+        "رقم_الهاتف": phone_number,
+        "الرسالة": message,
+        "عميل_مسجل": customer_info is not None,
+        "اسم_العميل": customer_info.get('name', 'غير مسجل') if customer_info else 'غير مسجل',
+        "نوع_الرسالة": {
+            "ترحيب": is_greeting,
+            "شكر": is_thanks,
+            "سؤال_أسعار": is_price
+        },
+        "وقت_المعالجة": f"{processing_time:.4f} ثانية"
+    }
+    
+    # إضافة الرد المناسب
+    if customer_info:
+        customer_name = customer_info.get('name', '')
+        
+        if is_greeting:
+            result["الرد"] = quick_system.get_welcome_response(customer_name)
+            result["نوع_الرد"] = "ترحيب مخصص"
+        elif is_thanks:
+            result["الرد"] = quick_system.get_thanks_response(customer_name)
+            result["نوع_الرد"] = "شكر مخصص"
+        elif is_price:
+            text, image = quick_system.get_price_response()
+            result["الرد"] = text
+            result["صورة"] = image
+            result["نوع_الرد"] = "أسعار مع صورة"
+        else:
+            result["الرد"] = f"أهلاً أخونا {customer_name} الكريم في مكتب الركائز البشرية! 🌟"
+            result["نوع_الرد"] = "رد عادي مخصص"
+        
+        # إضافة ملخص العميل
+        result["ملخص_العميل"] = customer_memory.create_customer_summary(customer_info)
+    else:
+        if is_greeting:
+            result["الرد"] = quick_system.get_welcome_response()
+            result["نوع_الرد"] = "ترحيب عام"
+        elif is_thanks:
+            result["الرد"] = quick_system.get_thanks_response()
+            result["نوع_الرد"] = "شكر عام"
+        elif is_price:
+            text, image = quick_system.get_price_response()
+            result["الرد"] = text
+            result["صورة"] = image
+            result["نوع_الرد"] = "أسعار مع صورة"
+        else:
+            result["الرد"] = "أهلاً بك في مكتب الركائز البشرية! 🌟"
+            result["نوع_الرد"] = "رد عادي عام"
+        
+        result["ملخص_العميل"] = "عميل جديد - غير مسجل في قاعدة البيانات"
+    
+    return jsonify(result, ensure_ascii=False)
 
 @app.route('/customers-stats')
 def customers_stats():
@@ -893,8 +1149,28 @@ def customers_stats():
 
 # --- 🧹 تنظيف ذكي مع الذاكرة ---
 def smart_cleanup_with_memory():
-    # [نفس الكود السابق - لم يتغير]
-    pass
+    """تنظيف دوري ذكي مع إدارة الذاكرة"""
+    while True:
+        time.sleep(900)  # كل 15 دقيقة
+        
+        conversation_manager.cleanup_old_conversations()
+        customer_memory.cleanup_old_cache()
+        
+        # تنظيف الذاكرة
+        if len(whatsapp_handler.processing_messages) > 500:
+            whatsapp_handler.processing_messages.clear()
+            print("🧹 تنظيف ذاكرة الرسائل")
+        
+        # تنظيف rate limiting
+        current_time = time.time()
+        expired_numbers = [
+            number for number, last_time in whatsapp_handler.rate_limit.items() 
+            if current_time - last_time > 1800  # 30 دقيقة
+        ]
+        for number in expired_numbers:
+            del whatsapp_handler.rate_limit[number]
+        
+        print(f"🧠 إحصائيات الذاكرة: {len(customer_memory.customer_cache)} عميل نشط")
 
 # تشغيل التنظيف الذكي
 cleanup_thread = threading.Thread(target=smart_cleanup_with_memory, daemon=True)
