@@ -22,12 +22,15 @@ def setup_admin_routes(app, customer_memory):
                     'message': 'رقم الهاتف واسم العاملة مطلوبان'
                 }), 400
             
+            # تطبيع رقم الهاتف
+            normalized_phone = customer_memory.normalize_phone_number(phone_number)
+            
             if customer_memory.db_pool:
                 conn = customer_memory.db_pool.getconn()
                 try:
                     with conn.cursor() as cur:
                         # التحقق من وجود العميل
-                        cur.execute("SELECT name FROM customers WHERE phone_number = %s", (phone_number,))
+                        cur.execute("SELECT name FROM customers WHERE phone_number = %s", (normalized_phone,))
                         customer = cur.fetchone()
                         if not customer:
                             return jsonify({
@@ -40,13 +43,15 @@ def setup_admin_routes(app, customer_memory):
                             INSERT INTO past_services (phone_number, worker_name, nationality, job_title, 
                                                      contract_date, status, contract_id, created_at)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-                        """, (phone_number, worker_name, nationality, job_title, contract_date, status, contract_id))
+                        """, (normalized_phone, worker_name, nationality, job_title, contract_date, status, contract_id))
                         
                         conn.commit()
                         
                         # تنظيف الكاش
                         if phone_number in customer_memory.customer_cache:
                             del customer_memory.customer_cache[phone_number]
+                        if normalized_phone in customer_memory.customer_cache:
+                            del customer_memory.customer_cache[normalized_phone]
                         
                         return jsonify({
                             'success': True, 
@@ -85,12 +90,15 @@ def setup_admin_routes(app, customer_memory):
                     'message': 'رقم الهاتف مطلوب'
                 }), 400
             
+            # تطبيع رقم الهاتف
+            normalized_phone = customer_memory.normalize_phone_number(phone_number)
+            
             if customer_memory.db_pool:
                 conn = customer_memory.db_pool.getconn()
                 try:
                     with conn.cursor() as cur:
                         # التحقق من وجود العميل
-                        cur.execute("SELECT name FROM customers WHERE phone_number = %s", (phone_number,))
+                        cur.execute("SELECT name FROM customers WHERE phone_number = %s", (normalized_phone,))
                         customer = cur.fetchone()
                         if not customer:
                             return jsonify({
@@ -103,13 +111,15 @@ def setup_admin_routes(app, customer_memory):
                             INSERT INTO current_requests (phone_number, request_id, type, nationality_preference, 
                                                         status, estimated_delivery, created_at)
                             VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                        """, (phone_number, request_id, request_type, nationality_preference, status, estimated_delivery))
+                        """, (normalized_phone, request_id, request_type, nationality_preference, status, estimated_delivery))
                         
                         conn.commit()
                         
                         # تنظيف الكاش
                         if phone_number in customer_memory.customer_cache:
                             del customer_memory.customer_cache[phone_number]
+                        if normalized_phone in customer_memory.customer_cache:
+                            del customer_memory.customer_cache[normalized_phone]
                         
                         return jsonify({
                             'success': True, 

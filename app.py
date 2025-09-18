@@ -9,7 +9,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from psycopg2.extras import RealDictCursor
 
-# استيراد الفيلات الجديدة
+# استيراد الملفات الجديدة
 from config import *
 from customer_memory import CustomerMemoryManager
 from conversation_manager import ConversationManager
@@ -40,10 +40,10 @@ if OPENAI_API_KEY:
 
 # تحميل ChromaDB (اختياري - للسرعة)
 try:
-    print("📄 تحميل نموذج الذكاء الاصطناعي...")
+    print("🔄 تحميل نموذج الذكاء الاصطناعي...")
     model = SentenceTransformer(MODEL_NAME)
     
-    print("📄 الاتصال بقاعدة البيانات...")
+    print("🔄 الاتصال بقاعدة البيانات...")
     chroma_client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
     collection = chroma_client.get_collection(name=COLLECTION_NAME)
     
@@ -175,6 +175,126 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
         whatsapp_handler.send_message(phone_number, "عذراً، حدث خطأ تقني. 📞 0556914447")
 
 @app.route('/')
+def home():
+    """الصفحة الرئيسية مع أزرار التنقل"""
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مكتب الركائز البشرية - النظام الذكي</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .hero-section {
+            padding: 60px 0;
+            color: white;
+            text-align: center;
+        }
+        .feature-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .btn-custom {
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .stats-box {
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-section">
+        <div class="container">
+            <h1 class="display-3 mb-4">🧠 مكتب الركائز البشرية</h1>
+            <p class="lead mb-4">النظام الذكي للاستقدام مع الذاكرة الشخصية</p>
+            
+            <div class="row justify-content-center">
+                <div class="col-md-3">
+                    <a href="/status" class="btn btn-light btn-custom">
+                        <i class="fas fa-chart-line"></i><br>حالة النظام
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="/admin" class="btn btn-warning btn-custom">
+                        <i class="fas fa-cog"></i><br>لوحة الإدارة
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="/customers-stats" class="btn btn-info btn-custom">
+                        <i class="fas fa-users"></i><br>إحصائيات العملاء
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="/test-system" class="btn btn-success btn-custom">
+                        <i class="fas fa-flask"></i><br>اختبار النظام
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                    <h4>ذاكرة شخصية</h4>
+                    <p>يتذكر اسم كل عميل وتاريخه مع المكتب</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-lightning-bolt fa-3x text-warning mb-3"></i>
+                    <h4>ردود فورية</h4>
+                    <p>استجابة سريعة للترحيب والأسعار والشكر</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-database fa-3x text-success mb-3"></i>
+                    <h4>قاعدة بيانات ذكية</h4>
+                    <p>PostgreSQL لحفظ بيانات العملاء ديناميكياً</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats-box text-center">
+            <h3>النظام يعمل بأقصى ذكاء 🚀</h3>
+            <p>متكامل مع WhatsApp Business API و OpenAI و PostgreSQL</p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """)
+
+@app.route('/status')
 def status():
     """صفحة حالة سريعة مع إحصائيات الذاكرة"""
     active_conversations = len(conversation_manager.conversations)
@@ -193,52 +313,122 @@ def status():
         print(f"خطأ في جلب عدد العملاء: {e}")
     
     return f"""
-    <html><head><title>بوت الركائز - نظام الذاكرة الذكي مع PostgreSQL</title>
-    <style>body{{font-family:Arial;margin:40px;background:#f0f8ff;}}
+    <html><head><title>حالة النظام - الركائز البشرية</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+    body{{font-family:Arial;margin:40px;background:#f0f8ff;}}
     .box{{background:white;padding:20px;border-radius:10px;margin:10px 0;box-shadow:0 4px 8px rgba(0,0,0,0.1);}}
     .green{{color:#28a745;}} .red{{color:#dc3545;}} .blue{{color:#007bff;}} .purple{{color:#6f42c1;}}
     .stat{{background:#e3f2fd;padding:15px;margin:10px 0;border-radius:8px;border-left:4px solid #2196f3;}}
     h1{{color:#1976d2;text-align:center;}}
     </style></head><body>
     
-    <div class="box">
-    <h1>🧠 مكتب الركائز - بوت ذكي مع PostgreSQL</h1>
+    <div class="container">
+        <div class="box">
+            <h1>🧠 حالة النظام الذكي</h1>
+            <div class="text-center">
+                <a href="/" class="btn btn-primary">العودة للرئيسية</a>
+                <a href="/admin" class="btn btn-warning">لوحة الإدارة</a>
+            </div>
+        </div>
+        
+        <div class="box">
+            <h2>📊 الحالة العامة:</h2>
+            <p class="{'green' if openai_client else 'red'}">{'✅' if openai_client else '❌'} OpenAI API</p>
+            <p class="{'green' if enhanced_retriever else 'red'}">{'✅' if enhanced_retriever else '❌'} قاعدة البيانات الذكية</p>
+            <p class="{'green' if customer_memory.db_pool else 'red'}">{'✅' if customer_memory.db_pool else '❌'} PostgreSQL Connection</p>
+            <p class="green">⚡ الردود السريعة - نشط</p>
+            <p class="blue">🙏 ردود الشكر السريعة - نشط</p>
+            <p class="purple">🧠 <strong>محدث!</strong> نظام الذاكرة مع PostgreSQL - نشط</p>
+        </div>
+        
+        <div class="stat">
+            <h2>🧠 إحصائيات الذاكرة الذكية:</h2>
+            <ul>
+                <li><strong>إجمالي العملاء المسجلين:</strong> {total_customers} عميل</li>
+                <li><strong>العملاء النشطين في الذاكرة:</strong> {cached_customers} عميل</li>
+                <li><strong>المحادثات النشطة:</strong> {active_conversations} محادثة</li>
+            </ul>
+        </div>
+        
+        <div class="box">
+            <h2>⚡ المميزات الجديدة:</h2>
+            <ul>
+                <li>✅ <strong>قاعدة بيانات PostgreSQL:</strong> بيانات ديناميكية ومحدثة</li>
+                <li>✅ <strong>ذاكرة شخصية للعملاء:</strong> البوت يتذكر اسم العميل وتاريخه</li>
+                <li>✅ <strong>ترحيب مخصص:</strong> "أهلاً أخونا أحمد الكريم مرة ثانية"</li>
+                <li>✅ <strong>تتبع الخدمات السابقة:</strong> يعرف العمالة السابقة والطلبات الحالية</li>
+                <li>✅ <strong>سياق المحادثة:</strong> يتذكر آخر 3 رسائل من كل عميل</li>
+                <li>✅ <strong>ردود ذكية مخصصة:</strong> حسب تفضيلات كل عميل</li>
+                <li>✅ <strong>كاش ذكي:</strong> سرعة عالية مع توفير الذاكرة</li>
+            </ul>
+        </div>
+        
+        <p class="green text-center"><strong>النظام يعمل بأقصى ذكاء مع PostgreSQL! 🧠 🚀</strong></p>
     </div>
-    
-    <div class="box">
-    <h2>📊 الحالة العامة:</h2>
-    <p class="{'green' if openai_client else 'red'}">{'✅' if openai_client else '❌'} OpenAI API</p>
-    <p class="{'green' if enhanced_retriever else 'red'}">{'✅' if enhanced_retriever else '❌'} قاعدة البيانات</p>
-    <p class="{'green' if customer_memory.db_pool else 'red'}">{'✅' if customer_memory.db_pool else '❌'} PostgreSQL Connection</p>
-    <p class="green">⚡ الردود السريعة - نشط</p>
-    <p class="blue">🙏 ردود الشكر السريعة - نشط</p>
-    <p class="purple">🧠 <strong>محدث!</strong> نظام الذاكرة مع PostgreSQL - نشط</p>
-    </div>
-    
-    <div class="stat">
-    <h2>🧠 إحصائيات الذاكرة الذكية:</h2>
-    <ul>
-    <li><strong>إجمالي العملاء المسجلين:</strong> {total_customers} عميل</li>
-    <li><strong>العملاء النشطين في الذاكرة:</strong> {cached_customers} عميل</li>
-    <li><strong>المحادثات النشطة:</strong> {active_conversations} محادثة</li>
-    </ul>
-    </div>
-    
-    <div class="box">
-    <h2>⚡ المميزات الجديدة:</h2>
-    <ul>
-    <li>✅ <strong>قاعدة بيانات PostgreSQL:</strong> بيانات ديناميكية ومحدثة</li>
-    <li>✅ <strong>ذاكرة شخصية للعملاء:</strong> البوت يتذكر اسم العميل وتاريخه</li>
-    <li>✅ <strong>ترحيب مخصص:</strong> "أهلاً أخونا أحمد الكريم مرة ثانية"</li>
-    <li>✅ <strong>تتبع الخدمات السابقة:</strong> يعرف العمالة السابقة والطلبات الحالية</li>
-    <li>✅ <strong>سياق المحادثة:</strong> يتذكر آخر 3 رسائل من كل عميل</li>
-    <li>✅ <strong>ردود ذكية مخصصة:</strong> حسب تفضيلات كل عميل</li>
-    <li>✅ <strong>كاش ذكي:</strong> سرعة عالية مع توفير الذاكرة</li>
-    </ul>
-    </div>
-    
-    <p class="green"><strong>النظام يعمل بأقصى ذكاء مع PostgreSQL! 🧠 🚀</strong></p>
     </body></html>"""
+
+@app.route('/test-system')
+def test_system():
+    """صفحة اختبار النظام"""
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار النظام - الركائز البشرية</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body style="background:#f8f9fa; padding:20px;">
+    <div class="container">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3>🧪 اختبار النظام الذكي</h3>
+                <a href="/" class="btn btn-light">العودة للرئيسية</a>
+            </div>
+            <div class="card-body">
+                <h4>اختبار سريع للذاكرة:</h4>
+                <div class="mb-3">
+                    <label>رقم الهاتف للاختبار:</label>
+                    <input type="text" class="form-control" id="phoneInput" value="201234567890" placeholder="رقم الهاتف">
+                </div>
+                <div class="mb-3">
+                    <label>الرسالة للاختبار:</label>
+                    <input type="text" class="form-control" id="messageInput" value="السلام عليكم" placeholder="اكتب رسالة">
+                </div>
+                <button class="btn btn-success" onclick="testSystem()">اختبر النظام</button>
+                
+                <div id="result" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    function testSystem() {
+        const phone = document.getElementById('phoneInput').value;
+        const message = document.getElementById('messageInput').value;
+        
+        fetch(`/test-customer/${phone}/${message}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-info">
+                        <h5>نتيجة الاختبار:</h5>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-danger">خطأ: ${error}</div>
+                `;
+            });
+    }
+    </script>
+</body>
+</html>
+    """)
 
 @app.route('/test-customer/<phone_number>/<message>')
 def test_customer_memory(phone_number, message):
@@ -339,13 +529,16 @@ def add_customer():
                 'message': 'رقم الهاتف والاسم مطلوبان'
             }), 400
         
+        # تطبيع رقم الهاتف
+        normalized_phone = customer_memory.normalize_phone_number(phone_number)
+        
         # إضافة العميل لقاعدة البيانات
         if customer_memory.db_pool:
             conn = customer_memory.db_pool.getconn()
             try:
                 with conn.cursor() as cur:
                     # التحقق من وجود العميل مسبقاً
-                    cur.execute("SELECT phone_number FROM customers WHERE phone_number = %s", (phone_number,))
+                    cur.execute("SELECT phone_number FROM customers WHERE phone_number = %s", (normalized_phone,))
                     if cur.fetchone():
                         return jsonify({
                             'success': False, 
@@ -356,13 +549,15 @@ def add_customer():
                     cur.execute("""
                         INSERT INTO customers (phone_number, name, gender, preferred_nationality, preferences, created_at)
                         VALUES (%s, %s, %s, %s, %s, NOW())
-                    """, (phone_number, name, gender, preferred_nationality, preferences))
+                    """, (normalized_phone, name, gender, preferred_nationality, preferences))
                     
                     conn.commit()
                     
                     # تنظيف الكاش للتأكد من تحديث البيانات
                     if phone_number in customer_memory.customer_cache:
                         del customer_memory.customer_cache[phone_number]
+                    if normalized_phone in customer_memory.customer_cache:
+                        del customer_memory.customer_cache[normalized_phone]
                     
                     return jsonify({
                         'success': True, 
@@ -397,7 +592,7 @@ if __name__ == '__main__':
     print("   - ردود فورية للترحيب والأسعار")
     print("   - 🙏 ردود شكر فورية بالهجة السعودية")
     print("   - 🧠 ذاكرة شخصية لكل عميل")
-    print("   - 💤 تخزين بيانات ديناميكي مع PostgreSQL")
+    print("   - 👤 تخزين بيانات ديناميكي مع PostgreSQL")
     print("   - 📊 تتبع الخدمات السابقة والطلبات الحالية")
     print("   - 💬 سياق المحادثة الذكي")
     print("   - 🎯 ردود مخصصة حسب تفضيلات العميل")

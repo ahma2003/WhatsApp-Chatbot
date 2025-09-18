@@ -59,9 +59,19 @@ ADMIN_TEMPLATE = """
         .nav-tabs .nav-link.active { background-color: #667eea; color: white; border-color: #667eea; }
         .loading { display: none; }
         .customers-table { max-height: 400px; overflow-y: auto; }
+        .home-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
+    <a href="/" class="btn btn-light home-button">
+        <i class="fas fa-home"></i> الرئيسية
+    </a>
+    
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -206,7 +216,7 @@ ADMIN_TEMPLATE = """
                                     <select class="form-select" name="status">
                                         <option value="مستلمة">مستلمة</option>
                                         <option value="ملغاة">ملغاة</option>
-                                        <option value="مُرتجعة">مُرتجعة</option>
+                                        <option value="مرتجعة">مرتجعة</option>
                                         <option value="منتهية">منتهية</option>
                                     </select>
                                 </div>
@@ -329,7 +339,168 @@ ADMIN_TEMPLATE = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // JavaScript code remains the same as in the original
+        // وظائف المساعدة
+        function showMessage(message, type = 'info') {
+            const messageArea = document.getElementById('messageArea');
+            const alertClass = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-danger' : 'alert-info';
+            
+            messageArea.innerHTML = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+
+        function toggleLoading(formId, show) {
+            const form = document.getElementById(formId);
+            const loading = form.querySelector('.loading');
+            const button = form.querySelector('button[type="submit"]');
+            
+            if (show) {
+                loading.style.display = 'inline-block';
+                button.disabled = true;
+            } else {
+                loading.style.display = 'none';
+                button.disabled = false;
+            }
+        }
+
+        // نموذج إضافة العميل
+        document.getElementById('customerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            toggleLoading('customerForm', true);
+            
+            const formData = new FormData(this);
+            
+            fetch('/admin/add-customer', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                toggleLoading('customerForm', false);
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    this.reset();
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                toggleLoading('customerForm', false);
+                showMessage('حدث خطأ في الشبكة: ' + error.message, 'error');
+            });
+        });
+
+        // نموذج إضافة الخدمة
+        document.getElementById('serviceForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            toggleLoading('serviceForm', true);
+            
+            const formData = new FormData(this);
+            
+            fetch('/admin/add-service', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                toggleLoading('serviceForm', false);
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    this.reset();
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                toggleLoading('serviceForm', false);
+                showMessage('حدث خطأ في الشبكة: ' + error.message, 'error');
+            });
+        });
+
+        // نموذج إضافة الطلب
+        document.getElementById('requestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            toggleLoading('requestForm', true);
+            
+            const formData = new FormData(this);
+            
+            fetch('/admin/add-request', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                toggleLoading('requestForm', false);
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    this.reset();
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                toggleLoading('requestForm', false);
+                showMessage('حدث خطأ في الشبكة: ' + error.message, 'error');
+            });
+        });
+
+        // تحميل قائمة العملاء
+        function loadCustomers() {
+            const tbody = document.getElementById('customersTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">جاري التحميل...</td></tr>';
+            
+            fetch('/admin/customers-list')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    tbody.innerHTML = '';
+                    if (data.customers.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center">لا يوجد عملاء مسجلين</td></tr>';
+                        return;
+                    }
+                    
+                    data.customers.forEach(customer => {
+                        const row = `
+                            <tr>
+                                <td>${customer.phone_number || '-'}</td>
+                                <td>${customer.name || '-'}</td>
+                                <td>${customer.gender || '-'}</td>
+                                <td>${customer.preferred_nationality || '-'}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-primary">${customer.services_count || 0}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info">${customer.requests_count || 0}</span>
+                                </td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">خطأ في تحميل البيانات</td></tr>';
+                }
+            })
+            .catch(error => {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">خطأ في الشبكة</td></tr>';
+            });
+        }
+
+        // تحميل قائمة العملاء عند تفعيل التاب
+        document.getElementById('customers-list-tab').addEventListener('click', function() {
+            setTimeout(loadCustomers, 100);
+        });
+
+        // تحميل قائمة العملاء عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            // تحميل القائمة إذا كان التاب نشط
+            if (document.getElementById('customers-list-tab').classList.contains('active')) {
+                loadCustomers();
+            }
+        });
     </script>
 </body>
 </html>
