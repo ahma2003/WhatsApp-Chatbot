@@ -40,10 +40,10 @@ if OPENAI_API_KEY:
 
 # تحميل ChromaDB (اختياري - للسرعة)
 try:
-    print("🔄 تحميل نموذج الذكاء الاصطناعي...")
+    print("📄 تحميل نموذج الذكاء الاصطناعي...")
     model = SentenceTransformer(MODEL_NAME)
     
-    print("🔄 الاتصال بقاعدة البيانات...")
+    print("📄 الاتصال بقاعدة البيانات...")
     chroma_client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
     collection = chroma_client.get_collection(name=COLLECTION_NAME)
     
@@ -53,7 +53,7 @@ try:
     print(f"✅ النظام جاهز مع الذاكرة الذكية! قاعدة البيانات: {collection.count()} مستند")
 
 except Exception as e:
-    print(f"❌ فشل تحميل AI: {e}")
+    print(f"⌚ فشل تحميل AI: {e}")
     print("💡 سيعمل بالردود السريعة والذاكرة فقط")
     response_generator = SmartResponseGenerator(openai_client, None, quick_system, customer_memory)
 
@@ -84,36 +84,75 @@ def webhook():
                     continue
                 
                 for message_data in value['messages']:
-                    if message_data.get('type') != 'text':
-                        continue
-                    
+                    message_type = message_data.get('type', '')
                     message_id = message_data.get('id', '')
                     phone_number = message_data.get('from', '')
-                    user_message = message_data.get('text', {}).get('body', '').strip()
                     
-                    if not phone_number or not user_message:
+                    if not phone_number:
                         continue
                     
+                    # فحص الرسائل المكررة
                     if whatsapp_handler.is_duplicate_message(message_id):
                         print(f"⚠️ رسالة مكررة: {message_id}")
                         continue
                     
+                    # فحص معدل الرسائل
                     if whatsapp_handler.check_rate_limit(phone_number):
                         print(f"⚠️ سرعة عالية من: {phone_number}")
                         continue
                     
-                    # معالجة فورية في thread منفصل
-                    thread = threading.Thread(
-                        target=process_user_message_with_memory,
-                        args=(phone_number, user_message),
-                        daemon=True
-                    )
-                    thread.start()
+                    # === معالجة الرسائل التفاعلية (جديد) ===
+                    if message_type == 'interactive':
+                        interactive_data = message_data.get('interactive', {})
+                        
+                        # معالجة الرد التفاعلي في thread منفصل
+                        thread = threading.Thread(
+                            target=handle_interactive_message_thread,
+                            args=(phone_number, interactive_data),
+                            daemon=True
+                        )
+                        thread.start()
+                        continue
+                    
+                    # === معالجة الرسائل النصية العادية ===
+                    if message_type == 'text':
+                        user_message = message_data.get('text', {}).get('body', '').strip()
+                        
+                        if not user_message:
+                            continue
+                        
+                        # معالجة فورية في thread منفصل
+                        thread = threading.Thread(
+                            target=process_user_message_with_memory,
+                            args=(phone_number, user_message),
+                            daemon=True
+                        )
+                        thread.start()
         
         return 'OK', 200
 
+def handle_interactive_message_thread(phone_number: str, interactive_data: dict):
+    """معالجة الرسائل التفاعلية في thread منفصل"""
+    try:
+        print(f"🔘 رد تفاعلي من {phone_number}: {interactive_data.get('type', '')}")
+        
+        # تحديث نشاط المحادثة
+        conversation_manager.update_activity(phone_number)
+        
+        # معالجة الرد التفاعلي
+        success = whatsapp_handler.handle_interactive_message(interactive_data, phone_number)
+        
+        if success:
+            print(f"✅ تم معالجة الرد التفاعلي بنجاح: {phone_number}")
+        else:
+            print(f"❌ فشل في معالجة الرد التفاعلي: {phone_number}")
+            
+    except Exception as e:
+        print(f"❌ خطأ في معالجة الرد التفاعلي: {e}")
+        whatsapp_handler.send_message(phone_number, "عذراً، حدث خطأ تقني. 📞 0556914447")
+
 def process_user_message_with_memory(phone_number: str, user_message: str):
-    """معالجة سريعة للرسائل مع الذاكرة الشخصية"""
+    """معالجة سريعة للرسائل مع القوائم التفاعلية والذاكرة الشخصية"""
     start_time = time.time()
     
     try:
@@ -128,10 +167,24 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
         
         # جلب معلومات العميل من الذاكرة
         customer_info = customer_memory.get_customer_info(phone_number)
-        if customer_info:
-            print(f"👤 عميل مسجل: {customer_info.get('name', 'غير معروف')}")
+        customer_name = customer_info.get('name', '') if customer_info else None
         
-        # توليد الرد الذكي مع الذاكرة
+        if customer_info:
+            print(f"👤 عميل مسجل: {customer_name or 'غير معروف'}")
+        
+        # === فحص طلب القائمة الرئيسية (جديد) ===
+        if whatsapp_handler.should_show_main_menu(user_message):
+            print(f"📋 طلب قائمة رئيسية من: {phone_number}")
+            whatsapp_handler.interactive_menu.send_main_menu(phone_number)
+            return
+        
+        # === للعملاء الجدد، إرسال قائمة ترحيبية (جديد) ===
+        if is_first:
+            print(f"🌟 إرسال قائمة ترحيبية للعميل الجديد: {phone_number}")
+            whatsapp_handler.send_welcome_menu_to_new_customer(phone_number, customer_name)
+            return
+        
+        # === توليد الرد الذكي مع الذاكرة ===
         if response_generator:
             bot_response, should_send_image, image_url = response_generator.generate_response(
                 user_message, phone_number, is_first
@@ -144,8 +197,6 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
                 success = whatsapp_handler.send_message(phone_number, bot_response)
         else:
             # نظام احتياطي أساسي مع الذاكرة
-            customer_name = customer_info.get('name', '') if customer_info else None
-            
             if quick_system.is_greeting_message(user_message):
                 bot_response = quick_system.get_welcome_response(customer_name)
                 success = whatsapp_handler.send_message(phone_number, bot_response)
@@ -157,9 +208,21 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
                 success = whatsapp_handler.send_image_with_text(phone_number, bot_response, image_url)
             else:
                 if customer_name:
-                    bot_response = f"أهلاً أخونا {customer_name} الكريم في مكتب الركائز البشرية! 🌟\nسيتواصل معك متخصص قريباً.\n📞 0556914447"
+                    bot_response = f"""أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية في مكتب الركائز البشرية! 🌟
+
+سيتواصل معك متخصص قريباً.
+
+💡 يمكنك كتابة "مساعدة" لعرض قائمة الخدمات التفاعلية
+
+📞 0556914447"""
                 else:
-                    bot_response = "أهلاً بك في مكتب الركائز البشرية! 🌟\nسيتواصل معك متخصص قريباً.\n📞 0556914447"
+                    bot_response = """أهلاً بك في مكتب الركائز البشرية! 🌟
+
+سيتواصل معك أحد موظفينا قريباً.
+
+💡 اكتب "مساعدة" لعرض قائمة خدماتنا التفاعلية
+
+📞 0556914447"""
                 success = whatsapp_handler.send_message(phone_number, bot_response)
             
             # إضافة للذاكرة حتى في النظام الاحتياطي
@@ -183,7 +246,7 @@ def home():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مكتب الركائز البشرية - النظام الذكي</title>
+    <title>مكتب الركائز البشرية - النظام الذكي التفاعلي</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -225,13 +288,27 @@ def home():
             border-radius: 10px;
             margin: 10px 0;
         }
+        .new-feature {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="hero-section">
         <div class="container">
             <h1 class="display-3 mb-4">🧠 مكتب الركائز البشرية</h1>
-            <p class="lead mb-4">النظام الذكي للاستقدام مع الذاكرة الشخصية</p>
+            <p class="lead mb-4">النظام الذكي التفاعلي مع القوائم التفاعلية والذاكرة الشخصية</p>
+            
+            <!-- إعلان الميزة الجديدة -->
+            <div class="new-feature">
+                <h4>🆕 جديد! القوائم التفاعلية في الواتساب</h4>
+                <p>الآن العملاء يمكنهم استخدام قوائم تفاعلية وأزرار سريعة للوصول لخدماتنا!</p>
+            </div>
             
             <div class="row justify-content-center">
                 <div class="col-md-3">
@@ -262,7 +339,14 @@ def home():
         <div class="row">
             <div class="col-md-4">
                 <div class="feature-card">
-                    <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                    <i class="fas fa-mobile-alt fa-3x text-primary mb-3"></i>
+                    <h4>قوائم تفاعلية</h4>
+                    <p>أزرار وقوائم منسدلة في الواتساب للوصول السريع للخدمات</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-brain fa-3x text-success mb-3"></i>
                     <h4>ذاكرة شخصية</h4>
                     <p>يتذكر اسم كل عميل وتاريخه مع المكتب</p>
                 </div>
@@ -274,18 +358,11 @@ def home():
                     <p>استجابة سريعة للترحيب والأسعار والشكر</p>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="feature-card">
-                    <i class="fas fa-database fa-3x text-success mb-3"></i>
-                    <h4>قاعدة بيانات ذكية</h4>
-                    <p>PostgreSQL لحفظ بيانات العملاء ديناميكياً</p>
-                </div>
-            </div>
         </div>
         
         <div class="stats-box text-center">
-            <h3>النظام يعمل بأقصى ذكاء 🚀</h3>
-            <p>متكامل مع WhatsApp Business API و OpenAI و PostgreSQL</p>
+            <h3>النظام يعمل بأقصى ذكاء مع القوائم التفاعلية! 🚀</h3>
+            <p>متكامل مع WhatsApp Business API وOpenAI وPostgreSQL</p>
         </div>
     </div>
     
@@ -296,9 +373,10 @@ def home():
 
 @app.route('/status')
 def status():
-    """صفحة حالة سريعة مع إحصائيات الذاكرة"""
+    """صفحة حالة سريعة مع إحصائيات الذاكرة والقوائم التفاعلية"""
     active_conversations = len(conversation_manager.conversations)
     cached_customers = len(customer_memory.customer_cache)
+    handler_stats = whatsapp_handler.get_handler_stats()
     
     # جلب إجمالي العملاء من قاعدة البيانات
     total_customers = 0
@@ -318,14 +396,15 @@ def status():
     <style>
     body{{font-family:Arial;margin:40px;background:#f0f8ff;}}
     .box{{background:white;padding:20px;border-radius:10px;margin:10px 0;box-shadow:0 4px 8px rgba(0,0,0,0.1);}}
-    .green{{color:#28a745;}} .red{{color:#dc3545;}} .blue{{color:#007bff;}} .purple{{color:#6f42c1;}}
+    .green{{color:#28a745;}} .red{{color:#dc3545;}} .blue{{color:#007bff;}} .purple{{color:#6f42c1;}} .orange{{color:#fd7e14;}}
     .stat{{background:#e3f2fd;padding:15px;margin:10px 0;border-radius:8px;border-left:4px solid #2196f3;}}
     h1{{color:#1976d2;text-align:center;}}
+    .new{{background:#fff3cd;border-left:4px solid #ffc107;}}
     </style></head><body>
     
     <div class="container">
         <div class="box">
-            <h1>🧠 حالة النظام الذكي</h1>
+            <h1>🧠 حالة النظام الذكي التفاعلي</h1>
             <div class="text-center">
                 <a href="/" class="btn btn-primary">العودة للرئيسية</a>
                 <a href="/admin" class="btn btn-warning">لوحة الإدارة</a>
@@ -340,6 +419,19 @@ def status():
             <p class="green">⚡ الردود السريعة - نشط</p>
             <p class="blue">🙏 ردود الشكر السريعة - نشط</p>
             <p class="purple">🧠 <strong>محدث!</strong> نظام الذاكرة مع PostgreSQL - نشط</p>
+            <p class="orange">📱 <strong>جديد!</strong> القوائم التفاعلية في الواتساب - {'نشط' if handler_stats['interactive_menu_available'] else 'غير نشط'}</p>
+        </div>
+        
+        <div class="stat new">
+            <h2>🆕 المميزات التفاعلية الجديدة:</h2>
+            <ul>
+                <li>✅ <strong>قوائم تفاعلية:</strong> أزرار وقوائم منسدلة في الواتساب</li>
+                <li>✅ <strong>قائمة ترحيبية للعملاء الجدد:</strong> تظهر تلقائياً</li>
+                <li>✅ <strong>أزرار سريعة:</strong> عاملة منزلية، مربية أطفال، تواصل معنا</li>
+                <li>✅ <strong>معالجة ذكية للتفاعل:</strong> ردود تلقائية حسب الاختيار</li>
+                <li>✅ <strong>عرض قائمة بكلمة "مساعدة":</strong> وصول سريع للخدمات</li>
+                <li>✅ <strong>مسارات ذكية:</strong> اختيار "أسعار" → صورة فورية</li>
+            </ul>
         </div>
         
         <div class="stat">
@@ -348,11 +440,13 @@ def status():
                 <li><strong>إجمالي العملاء المسجلين:</strong> {total_customers} عميل</li>
                 <li><strong>العملاء النشطين في الذاكرة:</strong> {cached_customers} عميل</li>
                 <li><strong>المحادثات النشطة:</strong> {active_conversations} محادثة</li>
+                <li><strong>الرسائل قيد المعالجة:</strong> {handler_stats['processing_messages_count']} رسالة</li>
+                <li><strong>الأرقام المحدودة السرعة:</strong> {handler_stats['rate_limited_numbers']} رقم</li>
             </ul>
         </div>
         
         <div class="box">
-            <h2>⚡ المميزات الجديدة:</h2>
+            <h2>⚡ المميزات المحدثة:</h2>
             <ul>
                 <li>✅ <strong>قاعدة بيانات PostgreSQL:</strong> بيانات ديناميكية ومحدثة</li>
                 <li>✅ <strong>ذاكرة شخصية للعملاء:</strong> البوت يتذكر اسم العميل وتاريخه</li>
@@ -361,10 +455,13 @@ def status():
                 <li>✅ <strong>سياق المحادثة:</strong> يتذكر آخر 3 رسائل من كل عميل</li>
                 <li>✅ <strong>ردود ذكية مخصصة:</strong> حسب تفضيلات كل عميل</li>
                 <li>✅ <strong>كاش ذكي:</strong> سرعة عالية مع توفير الذاكرة</li>
+                <li>🆕 <strong>قوائم تفاعلية:</strong> تجربة مستخدم متطورة في الواتساب</li>
+                <li>🆕 <strong>أزرار سريعة:</strong> وصول فوري للخدمات والأسعار</li>
+                <li>🆕 <strong>معالجة تفاعلية:</strong> ردود ذكية على الأزرار والقوائم</li>
             </ul>
         </div>
         
-        <p class="green text-center"><strong>النظام يعمل بأقصى ذكاء مع PostgreSQL! 🧠 🚀</strong></p>
+        <p class="green text-center"><strong>النظام يعمل بأقصى ذكاء مع القوائم التفاعلية! 🧠 📱 🚀</strong></p>
     </div>
     </body></html>"""
 
@@ -384,7 +481,7 @@ def test_system():
     <div class="container">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h3>🧪 اختبار النظام الذكي</h3>
+                <h3>🧪 اختبار النظام الذكي التفاعلي</h3>
                 <a href="/" class="btn btn-light">العودة للرئيسية</a>
             </div>
             <div class="card-body">
@@ -398,6 +495,7 @@ def test_system():
                     <input type="text" class="form-control" id="messageInput" value="السلام عليكم" placeholder="اكتب رسالة">
                 </div>
                 <button class="btn btn-success" onclick="testSystem()">اختبر النظام</button>
+                <button class="btn btn-info" onclick="testMenu()">اختبر القائمة التفاعلية</button>
                 
                 <div id="result" class="mt-4"></div>
             </div>
@@ -425,6 +523,22 @@ def test_system():
                 `;
             });
     }
+    
+    function testMenu() {
+        document.getElementById('result').innerHTML = `
+            <div class="alert alert-success">
+                <h5>📱 القوائم التفاعلية متاحة في الواتساب:</h5>
+                <ul>
+                    <li>✅ قائمة رئيسية عند بداية المحادثة</li>
+                    <li>✅ أزرار للخدمات (عاملة منزلية، مربية أطفال)</li>
+                    <li>✅ قائمة الأسعار مع الصور</li>
+                    <li>✅ معلومات التواصل والمتطلبات</li>
+                    <li>✅ عرض القائمة بكتابة "مساعدة"</li>
+                </ul>
+                <p><strong>اختبر من الواتساب مباشرة!</strong></p>
+            </div>
+        `;
+    }
     </script>
 </body>
 </html>
@@ -442,6 +556,7 @@ def test_customer_memory(phone_number, message):
     is_greeting = quick_system.is_greeting_message(message)
     is_thanks = quick_system.is_thanks_message(message)
     is_price = quick_system.is_price_inquiry(message)
+    is_menu_request = whatsapp_handler.should_show_main_menu(message)
     
     processing_time = time.time() - start_time
     
@@ -453,9 +568,16 @@ def test_customer_memory(phone_number, message):
         "نوع_الرسالة": {
             "ترحيب": is_greeting,
             "شكر": is_thanks,
-            "سؤال_أسعار": is_price
+            "سؤال_أسعار": is_price,
+            "طلب_قائمة_تفاعلية": is_menu_request
         },
-        "وقت_المعالجة": f"{processing_time:.4f} ثانية"
+        "الميزات_التفاعلية": {
+            "قائمة_تفاعلية_متاحة": whatsapp_handler.interactive_menu is not None,
+            "معالج_الأزرار_نشط": True,
+            "معالج_القوائم_نشط": True
+        },
+        "وقت_المعالجة": f"{processing_time:.4f} ثانية",
+        "حالة_النظام": "جاهز للقوائم التفاعلية"
     }
     
     return jsonify(result, ensure_ascii=False)
@@ -467,7 +589,8 @@ def customers_stats():
         "إجمالي_العملاء_المسجلين": 0,
         "العملاء_النشطين_في_الذاكرة": len(customer_memory.customer_cache),
         "المحادثات_النشطة": len(conversation_manager.conversations),
-        "العملاء_المسجلون": []
+        "العملاء_المسجلون": [],
+        "إحصائيات_التفاعل": whatsapp_handler.get_handler_stats()
     }
     
     try:
@@ -587,7 +710,7 @@ setup_admin_routes(app, customer_memory)
 start_cleanup_thread(conversation_manager, customer_memory, whatsapp_handler)
 
 if __name__ == '__main__':
-    print("🧠 تشغيل بوت الركائز الذكي مع PostgreSQL...")
+    print("🧠 تشغيل بوت الركائز الذكي مع القوائم التفاعلية...")
     print("⚡ المميزات:")
     print("   - ردود فورية للترحيب والأسعار")
     print("   - 🙏 ردود شكر فورية بالهجة السعودية")
@@ -597,5 +720,12 @@ if __name__ == '__main__':
     print("   - 💬 سياق المحادثة الذكي")
     print("   - 🎯 ردود مخصصة حسب تفضيلات العميل")
     print("   - ⚡ كاش ذكي للسرعة العالية")
-    print("=" * 60)
+    print("   - 📱 **جديد!** قوائم تفاعلية في الواتساب")
+    print("   - 🔘 **جديد!** أزرار سريعة للخدمات")
+    print("   - 📋 **جديد!** قوائم منسدلة للوصول السريع")
+    print("   - 🌟 **جديد!** قائمة ترحيبية للعملاء الجدد")
+    print("   - 💡 **جديد!** عرض القائمة بكتابة 'مساعدة'")
+    print("=" * 70)
+    print("🎉 النظام جاهز للقوائم التفاعلية الذكية!")
+    print("=" * 70)
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
