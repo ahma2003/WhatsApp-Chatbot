@@ -19,6 +19,8 @@ from smart_response import SmartResponseGenerator
 from whatsapp_handler import WhatsAppHandler
 from admin_template import ADMIN_TEMPLATE
 from cleanup_manager import start_cleanup_thread
+from datetime import datetime
+from psycopg2.extras import RealDictCursor
 
 # إنشاء التطبيق
 app = Flask(__name__)
@@ -585,49 +587,106 @@ def test_customer_memory(phone_number, message):
 @app.route('/customers-stats')
 def customers_stats():
     """إحصائيات مفصلة عن العملاء من PostgreSQL"""
+    
+    # Initialize stats with safe defaults
     stats = {
-        "إجمالي_العملاء_المسجلين": 0,
-        "العملاء_النشطين_في_الذاكرة": len(customer_memory.customer_cache),
-        "المحادثات_النشطة": len(conversation_manager.conversations),
-        "العملاء_المسجلون": [],
-        "إحصائيات_التفاعل": whatsapp_handler.get_handler_stats()
+        "total_customers": 0,
+        "active_customers_in_memory": len(customer_memory.customer_cache) if hasattr(customer_memory, 'customer_cache') else 0,
+        "active_conversations": len(conversation_manager.conversations) if hasattr(conversation_manager, 'conversations') else 0,
+        "registered_customers": [],
+        "system_info": {
+            "database_connected": customer_memory.db_pool is not None if hasattr(customer_memory, 'db_pool') else False,
+            "query_time": datetime.now().isoformat(),
+            "status": "initializing"
+        }
     }
     
+    # Add handler stats safely
     try:
-        if customer_memory.db_pool:
-            conn = customer_memory.db_pool.getconn()
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # جلب عدد العملاء
-                cur.execute("SELECT COUNT(*) FROM customers")
-                stats["إجمالي_العملاء_المسجلين"] = cur.fetchone()[0]
-                
-                # جلب أول 10 عملاء مع تفاصيلهم
-                cur.execute("""
-                    SELECT c.*, 
-                           (SELECT COUNT(*) FROM past_services WHERE phone_number = c.phone_number) as services_count,
-                           (SELECT COUNT(*) FROM current_requests WHERE phone_number = c.phone_number) as requests_count
-                    FROM customers c 
-                    ORDER BY c.created_at DESC 
-                    LIMIT 10
-                """)
-                
-                customers = cur.fetchall()
-                for customer in customers:
-                    stats["العملاء_المسجلون"].append({
-                        "رقم_الهاتف": customer['phone_number'],
-                        "الاسم": customer.get('name', 'غير معروف'),
-                        "الجنس": customer.get('gender', 'غير محدد'),
-                        "عدد_الخدمات_السابقة": customer['services_count'],
-                        "عدد_الطلبات_الحالية": customer['requests_count'],
-                        "الجنسية_المفضلة": customer.get('preferred_nationality', 'غير محدد')
-                    })
-            
-            customer_memory.db_pool.putconn(conn)
-    
+        if hasattr(whatsapp_handler, 'get_handler_stats'):
+            handler_stats = whatsapp_handler.get_handler_stats()
+            stats["interaction_stats"] = handler_stats
+        else:
+            stats["interaction_stats"] = {"error": "Handler stats not available"}
     except Exception as e:
-        print(f"خطأ في جلب إحصائيات العملاء: {e}")
+        print(f"Error getting handler stats: {e}")
+        stats["interaction_stats"] = {"error": str(e)}
     
-    return jsonify(stats, ensure_ascii=False)
+    # Database operations with comprehensive error handling
+    try:
+        if hasattr(customer_memory, 'db_pool') and customer_memory.db_pool:
+            conn = None
+            try:
+                conn = customer_memory.db_pool.getconn()
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Get total customers count
+                    cur.execute("SELECT COUNT(*) as total FROM customers")
+                    count_result = cur.fetchone()
+                    if count_result:
+                        stats["total_customers"] = int(count_result['total'])
+                    
+                    # Get customer details
+                    cur.execute("""
+                        SELECT c.phone_number, c.name, c.gender, c.preferred_nationality,
+                               c.created_at::text as created_at_str,
+                               COALESCE((SELECT COUNT(*) FROM past_services ps WHERE ps.phone_number = c.phone_number), 0) as services_count,
+                               COALESCE((SELECT COUNT(*) FROM current_requests cr WHERE cr.phone_number = c.phone_number), 0) as requests_count
+                        FROM customers c 
+                        ORDER BY c.created_at DESC 
+                        LIMIT 10
+                    """)
+                    
+                    customers = cur.fetchall()
+                    for customer in customers:
+                        try:
+                            customer_dict = {
+                                "phone_number": str(customer.get('phone_number', '')),
+                                "name": str(customer.get('name', 'غير معروف')),
+                                "gender": str(customer.get('gender', 'غير محدد')),
+                                "services_count": int(customer.get('services_count', 0)),
+                                "requests_count": int(customer.get('requests_count', 0)),
+                                "preferred_nationality": str(customer.get('preferred_nationality', 'غير محدد')),
+                                "created_at": str(customer.get('created_at_str', ''))
+                            }
+                            stats["registered_customers"].append(customer_dict)
+                        except Exception as customer_error:
+                            print(f"Error processing customer data: {customer_error}")
+                            continue
+                    
+                    stats["system_info"]["status"] = "success"
+                    
+            except Exception as db_error:
+                print(f"Database error in customers-stats: {db_error}")
+                stats["system_info"]["database_error"] = str(db_error)
+                stats["system_info"]["status"] = "database_error"
+            finally:
+                if conn:
+                    try:
+                        customer_memory.db_pool.putconn(conn)
+                    except Exception as conn_error:
+                        print(f"Error returning connection to pool: {conn_error}")
+        else:
+            stats["system_info"]["status"] = "no_database_connection"
+            stats["system_info"]["error"] = "Database pool not available"
+    
+    except Exception as general_error:
+        print(f"General error in customers-stats: {general_error}")
+        stats["system_info"]["general_error"] = str(general_error)
+        stats["system_info"]["status"] = "error"
+    
+    # Return with proper JSON encoding
+    try:
+        return jsonify(stats), 200
+    except Exception as json_error:
+        print(f"JSON serialization error: {json_error}")
+        # Fallback to basic stats
+        basic_stats = {
+            "error": "JSON serialization failed",
+            "total_customers": stats.get("total_customers", 0),
+            "timestamp": datetime.now().isoformat(),
+            "details": str(json_error)
+        }
+        return jsonify(basic_stats), 200
 
 @app.route('/admin')
 def admin_panel():
