@@ -467,9 +467,11 @@ def status():
     </div>
     </body></html>"""
 
+# استبدل مسار /test-system في app.py بهذا الكود المحدث:
+
 @app.route('/test-system')
 def test_system():
-    """صفحة اختبار النظام"""
+    """صفحة اختبار النظام المحدثة بدون أخطاء"""
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -478,69 +480,237 @@ def test_system():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>اختبار النظام - الركائز البشرية</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card { 
+            border: none; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+            margin-bottom: 20px;
+        }
+        .card-header { 
+            background: linear-gradient(45deg, #1e3c72, #2a5298); 
+            color: white; 
+            border-radius: 15px 15px 0 0 !important;
+            padding: 15px 20px;
+        }
+        .form-control { 
+            border-radius: 10px; 
+            border: 2px solid #e9ecef;
+            padding: 12px 15px;
+        }
+        .form-control:focus { 
+            border-color: #667eea; 
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn-success { 
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf); 
+            border: none; 
+            border-radius: 10px;
+            padding: 12px 25px;
+        }
+        .btn-info { 
+            background: linear-gradient(45deg, #667eea, #764ba2); 
+            border: none; 
+            border-radius: 10px;
+            padding: 12px 25px;
+        }
+        .result-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #007bff;
+            margin-top: 20px;
+        }
+        .success-box {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        .error-box {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+    </style>
 </head>
-<body style="background:#f8f9fa; padding:20px;">
+<body>
     <div class="container">
         <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h3>🧪 اختبار النظام الذكي التفاعلي</h3>
-                <a href="/" class="btn btn-light">العودة للرئيسية</a>
+            <div class="card-header text-center">
+                <h3><i class="fas fa-flask"></i> اختبار النظام الذكي التفاعلي</h3>
+                <a href="/" class="btn btn-light mt-2"><i class="fas fa-home"></i> العودة للرئيسية</a>
             </div>
             <div class="card-body">
-                <h4>اختبار سريع للذاكرة:</h4>
-                <div class="mb-3">
-                    <label>رقم الهاتف للاختبار:</label>
-                    <input type="text" class="form-control" id="phoneInput" value="201234567890" placeholder="رقم الهاتف">
-                </div>
-                <div class="mb-3">
-                    <label>الرسالة للاختبار:</label>
-                    <input type="text" class="form-control" id="messageInput" value="السلام عليكم" placeholder="اكتب رسالة">
-                </div>
-                <button class="btn btn-success" onclick="testSystem()">اختبر النظام</button>
-                <button class="btn btn-info" onclick="testMenu()">اختبر القائمة التفاعلية</button>
+                <h4 class="mb-4"><i class="fas fa-brain"></i> اختبار سريع للذاكرة والتفاعل:</h4>
                 
-                <div id="result" class="mt-4"></div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><i class="fas fa-phone"></i> رقم الهاتف للاختبار:</label>
+                        <input type="text" class="form-control" id="phoneInput" placeholder="مثال: 966501111111">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label"><i class="fas fa-comment"></i> الرسالة للاختبار:</label>
+                        <input type="text" class="form-control" id="messageInput" placeholder="اكتب رسالة للاختبار">
+                    </div>
+                </div>
+                
+                <div class="text-center mb-4">
+                    <button class="btn btn-success me-2" onclick="testSystem()">
+                        <i class="fas fa-play"></i> اختبر النظام
+                    </button>
+                    <button class="btn btn-info me-2" onclick="testMenu()">
+                        <i class="fas fa-list"></i> اختبر القائمة التفاعلية
+                    </button>
+                    <button class="btn btn-warning" onclick="clearResults()">
+                        <i class="fas fa-eraser"></i> مسح النتائج
+                    </button>
+                </div>
+                
+                <div id="result"></div>
+            </div>
+        </div>
+        
+        <!-- بطاقة المميزات -->
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-star"></i> المميزات المتاحة للاختبار</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center p-3 bg-light rounded">
+                            <i class="fas fa-memory fa-2x text-primary mb-2"></i>
+                            <h6>الذاكرة الذكية</h6>
+                            <small>يتذكر اسم العميل وتاريخه</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center p-3 bg-light rounded">
+                            <i class="fas fa-mobile-alt fa-2x text-success mb-2"></i>
+                            <h6>القوائم التفاعلية</h6>
+                            <small>أزرار وقوائم في الواتساب</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center p-3 bg-light rounded">
+                            <i class="fas fa-bolt fa-2x text-warning mb-2"></i>
+                            <h6>ردود فورية</h6>
+                            <small>استجابة سريعة للرسائل</small>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     
     <script>
-    function testSystem() {
-        const phone = document.getElementById('phoneInput').value;
-        const message = document.getElementById('messageInput').value;
+        // لا تحدد قيم افتراضية - اترك الحقول فارغة
         
-        fetch(`/test-customer/${phone}/${message}`)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('result').innerHTML = `
-                    <div class="alert alert-info">
-                        <h5>نتيجة الاختبار:</h5>
-                        <pre>${JSON.stringify(data, null, 2)}</pre>
-                    </div>
-                `;
-            })
-            .catch(error => {
-                document.getElementById('result').innerHTML = `
-                    <div class="alert alert-danger">خطأ: ${error}</div>
-                `;
-            });
-    }
-    
-    function testMenu() {
-        document.getElementById('result').innerHTML = `
-            <div class="alert alert-success">
-                <h5>📱 القوائم التفاعلية متاحة في الواتساب:</h5>
-                <ul>
-                    <li>✅ قائمة رئيسية عند بداية المحادثة</li>
-                    <li>✅ أزرار للخدمات (عاملة منزلية، مربية أطفال)</li>
-                    <li>✅ قائمة الأسعار مع الصور</li>
-                    <li>✅ معلومات التواصل والمتطلبات</li>
-                    <li>✅ عرض القائمة بكتابة "مساعدة"</li>
-                </ul>
-                <p><strong>اختبر من الواتساب مباشرة!</strong></p>
-            </div>
-        `;
-    }
+        function testSystem() {
+            const phone = document.getElementById('phoneInput').value.trim();
+            const message = document.getElementById('messageInput').value.trim();
+            
+            if (!phone || !message) {
+                showResult('يرجى إدخال رقم الهاتف والرسالة', 'error');
+                return;
+            }
+            
+            showResult('جاري اختبار النظام...', 'info');
+            
+            fetch('/test-customer/' + encodeURIComponent(phone) + '/' + encodeURIComponent(message))
+                .then(response => response.json())
+                .then(data => {
+                    let resultHtml = '<div class="result-box success-box">';
+                    resultHtml += '<h5><i class="fas fa-check-circle"></i> نتيجة الاختبار:</h5>';
+                    resultHtml += '<div class="row">';
+                    resultHtml += '<div class="col-md-6">';
+                    resultHtml += '<p><strong>رقم الهاتف:</strong> ' + data.رقم_الهاتف + '</p>';
+                    resultHtml += '<p><strong>الرسالة:</strong> ' + data.الرسالة + '</p>';
+                    resultHtml += '<p><strong>عميل مسجل:</strong> ' + (data.عميل_مسجل ? 'نعم' : 'لا') + '</p>';
+                    resultHtml += '<p><strong>اسم العميل:</strong> ' + data.اسم_العميل + '</p>';
+                    resultHtml += '</div>';
+                    resultHtml += '<div class="col-md-6">';
+                    resultHtml += '<p><strong>وقت المعالجة:</strong> ' + data.وقت_المعالجة + '</p>';
+                    resultHtml += '<p><strong>حالة النظام:</strong> ' + data.حالة_النظام + '</p>';
+                    
+                    // عرض أنواع الرسائل
+                    resultHtml += '<div class="mt-3">';
+                    resultHtml += '<h6>تحليل الرسالة:</h6>';
+                    if (data.نوع_الرسالة && data.نوع_الرسالة.ترحيب) resultHtml += '<span class="badge bg-primary me-1">ترحيب</span>';
+                    if (data.نوع_الرسالة && data.نوع_الرسالة.شكر) resultHtml += '<span class="badge bg-success me-1">شكر</span>';
+                    if (data.نوع_الرسالة && data.نوع_الرسالة.سؤال_أسعار) resultHtml += '<span class="badge bg-warning me-1">سؤال أسعار</span>';
+                    if (data.نوع_الرسالة && data.نوع_الرسالة.طلب_قائمة_تفاعلية) resultHtml += '<span class="badge bg-info me-1">طلب قائمة تفاعلية</span>';
+                    resultHtml += '</div>';
+                    
+                    resultHtml += '</div>';
+                    resultHtml += '</div>';
+                    resultHtml += '</div>';
+                    
+                    document.getElementById('result').innerHTML = resultHtml;
+                })
+                .catch(error => {
+                    showResult('خطأ في الاختبار: ' + error.message, 'error');
+                });
+        }
+        
+        function testMenu() {
+            let resultHtml = '<div class="result-box success-box">';
+            resultHtml += '<h5><i class="fas fa-mobile-alt"></i> القوائم التفاعلية متاحة في الواتساب:</h5>';
+            resultHtml += '<div class="row">';
+            resultHtml += '<div class="col-md-6">';
+            resultHtml += '<ul class="list-unstyled">';
+            resultHtml += '<li><i class="fas fa-check text-success"></i> قائمة رئيسية عند بداية المحادثة</li>';
+            resultHtml += '<li><i class="fas fa-check text-success"></i> أزرار للخدمات (عاملة منزلية، مربية أطفال)</li>';
+            resultHtml += '<li><i class="fas fa-check text-success"></i> قائمة الأسعار مع الصور</li>';
+            resultHtml += '</ul>';
+            resultHtml += '</div>';
+            resultHtml += '<div class="col-md-6">';
+            resultHtml += '<ul class="list-unstyled">';
+            resultHtml += '<li><i class="fas fa-check text-success"></i> معلومات التواصل والمتطلبات</li>';
+            resultHtml += '<li><i class="fas fa-check text-success"></i> عرض القائمة بكتابة "مساعدة"</li>';
+            resultHtml += '<li><i class="fas fa-check text-success"></i> معالجة ذكية للتفاعل مع الأزرار</li>';
+            resultHtml += '</ul>';
+            resultHtml += '</div>';
+            resultHtml += '</div>';
+            resultHtml += '<div class="alert alert-info mt-3">';
+            resultHtml += '<i class="fas fa-info-circle"></i> <strong>للاختبار:</strong> أرسل رسالة من الواتساب مباشرة لرؤية القوائم التفاعلية!';
+            resultHtml += '</div>';
+            resultHtml += '</div>';
+            
+            document.getElementById('result').innerHTML = resultHtml;
+        }
+        
+        function clearResults() {
+            document.getElementById('result').innerHTML = '';
+            // مسح الحقول أيضاً
+            document.getElementById('phoneInput').value = '';
+            document.getElementById('messageInput').value = '';
+        }
+        
+        function showResult(message, type) {
+            let className = 'result-box';
+            let icon = 'fas fa-info-circle';
+            
+            if (type === 'error') {
+                className += ' error-box';
+                icon = 'fas fa-exclamation-triangle';
+            } else if (type === 'success') {
+                className += ' success-box';
+                icon = 'fas fa-check-circle';
+            }
+            
+            document.getElementById('result').innerHTML = 
+                '<div class="' + className + '">' +
+                '<i class="' + icon + '"></i> ' + message +
+                '</div>';
+        }
     </script>
 </body>
 </html>
@@ -584,7 +754,7 @@ def test_customer_memory(phone_number, message):
     
     return jsonify(result, ensure_ascii=False)
 
-# استبدل مسار /customers-stats في app.py بهذا الكود المحدث:
+
 
 @app.route('/customers-stats')
 def customers_stats():
