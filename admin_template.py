@@ -119,7 +119,7 @@ ADMIN_TEMPLATE = """
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label"><i class="fas fa-phone"></i> رقم الهاتف *</label>
-                                    <input type="text" class="form-control" name="phone_number" placeholder="مثال: 201002589923" required>
+                                    <input type="text" class="form-control" name="phone_number" placeholder="مثال: 966501111111" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label"><i class="fas fa-user"></i> اسم العميل *</label>
