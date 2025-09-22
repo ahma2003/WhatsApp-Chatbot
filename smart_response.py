@@ -6,7 +6,7 @@ class SmartResponseGenerator:
         self.customer_memory = customer_memory
     
     def generate_response(self, user_message: str, phone_number: str, is_first: bool) -> tuple:
-        """إنتاج الرد الذكي مع الذاكرة الشخصية"""
+        """إنتاج الرد الذكي مع الذاكرة الشخصية والسياق الكامل"""
         
         print(f"🔍 معالجة: '{user_message}' من {phone_number}")
         
@@ -55,10 +55,13 @@ class SmartResponseGenerator:
             return response, False, None
         
         try:
-            # إنشاء رد ذكي مع الذاكرة الشخصية
+            # إنشاء رد ذكي مع الذاكرة الشخصية والسياق الكامل
             context = self.generate_context_string(retrieved_data)
             conversation_context = self.customer_memory.get_conversation_context(phone_number)
             customer_summary = self.customer_memory.create_customer_summary(customer_info)
+            
+            # **الجديد: جلب آخر رد من البوت**
+            last_bot_response = self.customer_memory.get_last_bot_response(phone_number)
             
             # تحديد نوع الترحيب حسب العميل
             if is_first and customer_name:
@@ -76,20 +79,43 @@ class SmartResponseGenerator:
 آخر محادثات:
 {conversation_context}
 
+آخر رد من البوت:
+{last_bot_response}
+
+السؤال الحالي من العميل: {user_message}
+
 أجب بشكل مختصر وودود من المعلومات المتوفرة فقط.
 استخدم عبارات: عميلنا الكريم، حياك الله، يسعدنا خدمتك.
 إذا كان العميل له تعامل سابق، أشر إليه بلطف.
+إذا كان العميل يرد على سؤال أو استفسار في آخر رد منك، تعامل معه بناءً على السياق.
 اختتم بسؤال لتشجيع الحوار.
 
-السؤال: {user_message}
-المعلومات: {context}"""
+المعلومات التقنية: {context}"""
+
+            # **تحسين: إضافة messages بدلاً من system prompt واحد**
+            messages = [
+                {"role": "system", "content": f"""{greeting}أنت مساعد ذكي لمكتب الركائز البشرية للاستقدام.
+
+معلومات العميل: {customer_summary}
+
+أجب بشكل مختصر وودود. استخدم عبارات: عميلنا الكريم، حياك الله، يسعدنا خدمتك.
+المعلومات التقنية: {context}"""}
+            ]
+            
+            # إضافة آخر محادثة إذا كانت موجودة
+            recent_conversation = self.customer_memory.get_recent_conversation_for_ai(phone_number)
+            for msg in recent_conversation:
+                if msg['role'] == 'user':
+                    messages.append({"role": "user", "content": msg['content']})
+                elif msg['role'] == 'assistant':
+                    messages.append({"role": "assistant", "content": msg['content']})
+            
+            # إضافة السؤال الحالي
+            messages.append({"role": "user", "content": user_message})
 
             response = self.openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
+                messages=messages,
                 max_tokens=700,
                 temperature=0.1
             )

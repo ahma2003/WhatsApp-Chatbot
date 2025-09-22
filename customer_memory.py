@@ -176,7 +176,7 @@ class CustomerMemoryManager:
                 print(f"🧹 تنظيف تاريخ المحادثة للعميل: {normalized_phone}")
     
     def get_conversation_context(self, phone_number: str) -> str:
-        """جلب سياق المحادثة السابقة"""
+        """جلب سياق المحادثة السابقة (للعرض فقط)"""
         normalized_phone = self.normalize_phone_number(phone_number)
         
         with self.memory_lock:
@@ -191,6 +191,50 @@ class CustomerMemoryManager:
                 context += f"البوت: {msg['bot_response'][:100]}...\n"
             
             return context
+    
+    def get_last_bot_response(self, phone_number: str) -> str:
+        """🆕 جلب آخر رد من البوت"""
+        normalized_phone = self.normalize_phone_number(phone_number)
+        
+        with self.memory_lock:
+            if normalized_phone not in self.conversation_history:
+                return ""
+            
+            messages = self.conversation_history[normalized_phone]
+            if messages:
+                last_response = messages[-1]['bot_response']
+                print(f"📝 آخر رد للبوت: {last_response[:50]}...")
+                return last_response
+            
+            return ""
+    
+    def get_recent_conversation_for_ai(self, phone_number: str, max_messages: int = 4) -> List[dict]:
+        """🆕 جلب المحادثة الأخيرة بصيغة مناسبة لـ OpenAI"""
+        normalized_phone = self.normalize_phone_number(phone_number)
+        
+        with self.memory_lock:
+            if normalized_phone not in self.conversation_history:
+                return []
+            
+            messages = self.conversation_history[normalized_phone]
+            # نأخذ آخر max_messages/2 محادثات (كل محادثة تحتوي user+assistant)
+            recent = messages[-(max_messages//2):] if len(messages) > max_messages//2 else messages
+            
+            ai_messages = []
+            for msg in recent:
+                # إضافة رسالة المستخدم
+                ai_messages.append({
+                    'role': 'user',
+                    'content': msg['user_message']
+                })
+                # إضافة رد البوت
+                ai_messages.append({
+                    'role': 'assistant', 
+                    'content': msg['bot_response']
+                })
+            
+            print(f"🧠 تم إرسال {len(ai_messages)} رسالة للـ AI كسياق")
+            return ai_messages
     
     def create_customer_summary(self, customer_data: dict) -> str:
         """إنشاء ملخص مختصر وذكي للعميل"""
