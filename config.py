@@ -11,7 +11,7 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 # --- إعدادات قاعدة البيانات ---
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-<<<<<<< HEAD
+
 # --- إعدادات Embeddings الجديدة (OpenAI فقط) ---
 EMBEDDING_MODEL = "text-embedding-3-small"  # أرخص وأسرع
 USE_OPENAI_EMBEDDINGS = True
@@ -20,12 +20,12 @@ EMBEDDING_CACHE_DURATION = 86400  # 24 ساعة
 
 # --- إلغاء إعدادات ChromaDB والنماذج المحلية ---
 # (محذوفة لتوفير الذاكرة)
-=======
+
 # --- إعدادات ChromaDB ---
 MODEL_NAME = "intfloat/multilingual-e5-large"
 PERSIST_DIRECTORY = "my_chroma_db"
 COLLECTION_NAME = "recruitment_qa"
->>>>>>> 48acdaad575ae42c443f8469a20da9c9faa3d4ee
+
 
 # --- متغيرات عامة ---
 gen = False
@@ -75,7 +75,5 @@ if OPENAI_API_KEY:
     print("💰 وضع التوفير - نشط")
 if ACCESS_TOKEN:
     print("📱 WhatsApp Business API - متاح")
-<<<<<<< HEAD
 print("⚡ النظام محسن لاستهلاك أقل للذاكرة!")
-=======
->>>>>>> 48acdaad575ae42c443f8469a20da9c9faa3d4ee
+
