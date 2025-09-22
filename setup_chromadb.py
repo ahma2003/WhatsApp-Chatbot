@@ -6,7 +6,7 @@ import numpy as np
 from typing import List, Dict
 
 # --- الإعدادات المحسنة ---
-MODEL_NAME = 'intfloat/multilingual-e5-large'
+MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 JSON_FILE_PATH = 'data.json'
 PERSIST_DIRECTORY = "my_chroma_db"  
 COLLECTION_NAME = "recruitment_qa" 
