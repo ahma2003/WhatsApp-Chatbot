@@ -144,12 +144,12 @@ class InteractiveMenuHandler:
         if not self.whatsapp_handler.ACCESS_TOKEN or not self.whatsapp_handler.PHONE_NUMBER_ID:
             return False
             
-        url = f"https://graph.facebook.com/v18.0/{self.whatsapp_handler.PHONE_NUMBER_ID}/messages"
+        url = "https://waba.360dialog.io/v1/messages"
         headers = {
-            "Authorization": f"Bearer {self.whatsapp_handler.ACCESS_TOKEN}",
+            "D360-API-KEY": self.whatsapp_handler.ACCESS_TOKEN,
             "Content-Type": "application/json"
         }
-        
+                
         data = {
             "messaging_product": "whatsapp",
             "to": to_number,
@@ -188,12 +188,12 @@ class InteractiveMenuHandler:
         if not self.whatsapp_handler.ACCESS_TOKEN or not self.whatsapp_handler.PHONE_NUMBER_ID:
             return False
             
-        url = f"https://graph.facebook.com/v18.0/{self.whatsapp_handler.PHONE_NUMBER_ID}/messages"
+
+        url = "https://waba.360dialog.io/v1/messages"
         headers = {
-            "Authorization": f"Bearer {self.whatsapp_handler.ACCESS_TOKEN}",
+            "D360-API-KEY": self.whatsapp_handler.ACCESS_TOKEN,
             "Content-Type": "application/json"
         }
-        
         data = {
             "messaging_product": "whatsapp",
             "to": to_number,
