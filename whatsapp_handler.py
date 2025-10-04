@@ -84,19 +84,22 @@ class WhatsAppHandler:
         if len(message) > 900:
             message = message[:850] + "...\n\nللمزيد: 📞 0556914447"
         
-        data = {
+        # التعديل الأساسي: إضافة messaging_product
+        payload = json.dumps({
+            "messaging_product": "whatsapp",
             "recipient_type": "individual",
             "to": to_number,
             "type": "text",
             "text": {
                 "body": message
             }
-        }
+        })
         
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+                # استخدام request بدل post مع data=payload (مش json.dumps مرة تانية)
+                response = requests.request("POST", url, headers=headers, data=payload, timeout=10)
                 
                 # فحص الرد
                 if response.status_code == 201 or response.status_code == 200:
@@ -108,6 +111,7 @@ class WhatsAppHandler:
                         time.sleep(2 * (attempt + 1))  # انتظر أطول مع كل محاولة
                         continue
                 else:
+                    print(f"❌ خطأ {response.status_code}: {response.text}")
                     response.raise_for_status()
                     
             except requests.exceptions.RequestException as e:
@@ -139,7 +143,9 @@ class WhatsAppHandler:
         if len(message) > 800:
             message = message[:750] + "...\n📞 للمزيد: 0556914447"
         
-        data = {
+        # إضافة messaging_product للصور أيضاً
+        payload = json.dumps({
+            "messaging_product": "whatsapp",
             "recipient_type": "individual",
             "to": to_number,
             "type": "image",
@@ -147,17 +153,18 @@ class WhatsAppHandler:
                 "link": image_url,
                 "caption": message
             }
-        }
+        })
         
         max_retries = 2
         for attempt in range(max_retries):
             try:
-                response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+                response = requests.request("POST", url, headers=headers, data=payload, timeout=10)
                 
                 if response.status_code == 201 or response.status_code == 200:
                     print(f"✅ تم إرسال الصورة إلى {to_number}")
                     return True
                 else:
+                    print(f"❌ خطأ {response.status_code}: {response.text}")
                     response.raise_for_status()
                     
             except requests.exceptions.RequestException as e:
