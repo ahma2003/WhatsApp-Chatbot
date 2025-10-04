@@ -73,7 +73,7 @@ class WhatsAppHandler:
         # انتظر قبل الإرسال
         self._wait_before_send(to_number)
         
-        url = "https://waba.360dialog.io/v1/messages"
+        url = "https://waba-v2.360dialog.io/messages"
         
         headers = {
             "D360-API-KEY": ACCESS_TOKEN,
@@ -129,7 +129,7 @@ class WhatsAppHandler:
         # انتظر قبل الإرسال
         self._wait_before_send(to_number)
         
-        url = "https://waba.360dialog.io/v1/messages"
+        url = "https://waba-v2.360dialog.io/messages"
         
         headers = {
             "D360-API-KEY": ACCESS_TOKEN,
