@@ -59,14 +59,17 @@ class WhatsAppHandler:
         return False
     
     def send_message(self, to_number: str, message: str) -> bool:
-        """إرسال رسالة سريع"""
-        if not ACCESS_TOKEN or not PHONE_NUMBER_ID:
+        """إرسال رسالة عبر 360dialog"""
+        if not ACCESS_TOKEN:
             print("❌ معلومات WhatsApp غير مكتملة")
             return False
-            
-        url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+        
+        # 360dialog endpoint
+        url = "https://waba.360dialog.io/v1/messages"
+        
+        # 360dialog headers - مهم جداً!
         headers = {
-            "Authorization": f"Bearer {ACCESS_TOKEN}",
+            "D360-API-KEY": ACCESS_TOKEN,  # بدل Bearer
             "Content-Type": "application/json"
         }
         
@@ -74,10 +77,14 @@ class WhatsAppHandler:
         if len(message) > 900:
             message = message[:850] + "...\n\nللمزيد: 📞 0556914447"
         
+        # 360dialog data format
         data = {
-            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
             "to": to_number,
-            "text": {"body": message}
+            "type": "text",
+            "text": {
+                "body": message
+            }
         }
         
         try:
@@ -87,16 +94,20 @@ class WhatsAppHandler:
             return True
         except requests.exceptions.RequestException as e:
             print(f"❌ خطأ WhatsApp: {e}")
+            if hasattr(e.response, 'text'):
+                print(f"📄 تفاصيل: {e.response.text}")
             return False
     
     def send_image_with_text(self, to_number: str, message: str, image_url: str) -> bool:
-        """إرسال صورة مع رسالة"""
-        if not ACCESS_TOKEN or not PHONE_NUMBER_ID:
+        """إرسال صورة مع رسالة عبر 360dialog"""
+        if not ACCESS_TOKEN:
             return False
-            
-        url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
+        
+        # 360dialog endpoint
+        url = "https://waba.360dialog.io/v1/messages"
+        
         headers = {
-            "Authorization": f"Bearer {ACCESS_TOKEN}",
+            "D360-API-KEY": ACCESS_TOKEN,
             "Content-Type": "application/json"
         }
         
@@ -104,8 +115,9 @@ class WhatsAppHandler:
         if len(message) > 800:
             message = message[:750] + "...\n📞 للمزيد: 0556914447"
         
+        # 360dialog image format
         data = {
-            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
             "to": to_number,
             "type": "image",
             "image": {
@@ -181,5 +193,5 @@ class WhatsAppHandler:
             'processing_messages_count': len(self.processing_messages),
             'rate_limited_numbers': len(self.rate_limit),
             'interactive_menu_available': self.interactive_menu is not None,
-            'whatsapp_config_ready': bool(ACCESS_TOKEN and PHONE_NUMBER_ID)
+            'whatsapp_config_ready': bool(ACCESS_TOKEN)
         }
