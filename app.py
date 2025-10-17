@@ -84,12 +84,11 @@ def webhook():
         for entry in data['entry']:
             for change in entry.get('changes', []):
                 value = change.get('value', {})
-                print(value)
                 if 'messages' not in value:
                     continue
                 
                 for message_data in value['messages']:
-                    print(message_data)
+                    
                     message_type = message_data.get('type', '')
                     message_id = message_data.get('id', '')
                     phone_number = message_data.get('from', '')
@@ -123,7 +122,7 @@ def webhook():
                     # === معالجة الرسائل النصية العادية ===
                     if message_type == 'text':
                         user_message = message_data.get('text', {}).get('body', '').strip()
-                        
+                        print(user_message)
                         if not user_message:
                             continue
                         
@@ -207,6 +206,7 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
             if quick_system.is_greeting_message(user_message):
                 # ← هنا التعديل: إرسال الجيندر للدالة
                 bot_response = quick_system.get_welcome_response(customer_name, customer_gender)
+                
                 success = whatsapp_handler.send_message(phone_number, bot_response)
             elif quick_system.is_thanks_message(user_message):
                 # ← هنا كمان إرسال الجيندر

@@ -82,7 +82,7 @@ class WhatsAppHandler:
         message = message.strip()
         if len(message) > 900:
             message = message[:850] + "...\n\nللمزيد: 📞 0556914447"
-        
+        print(message)
         payload = json.dumps({
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
