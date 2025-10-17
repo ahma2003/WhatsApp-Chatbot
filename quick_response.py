@@ -5,15 +5,16 @@ GENDER_MAP = {
     "أنثى": "female",
     "ذكر": "male"
 }
-
 def normalize_gender(gender_value: str) -> str:
-    """تطبيع الجنس - إذا كانت البيانات محددة بـ 'أنثى' أو 'ذكر' فقط"""
     if not gender_value:
         return "unknown"
     
     gender_clean = str(gender_value).strip()
+    
+    # DEBUG: اطبع القيمة بالظبط
+    print(f"🔍 DEBUG Gender: '{gender_clean}' | repr: {repr(gender_clean)}")
+    
     return GENDER_MAP.get(gender_clean, "unknown")
-
 
 class QuickResponseSystem:
     def __init__(self):
