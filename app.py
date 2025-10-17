@@ -174,7 +174,7 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
         customer_info = customer_memory.get_customer_info(phone_number)
         customer_name = customer_info.get('name', '') if customer_info else None
         customer_gender = customer_info.get('gender', '') if customer_info else None  # ← إضافة جديدة
-        
+        print("***************************{customer_gender}")
         if customer_info:
             print(f"👤 عميل مسجل: {customer_name or 'غير معروف'} ({customer_gender or 'غير محدد'})")
         
