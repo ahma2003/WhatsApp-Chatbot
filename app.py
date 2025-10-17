@@ -20,7 +20,7 @@ from whatsapp_handler import WhatsAppHandler
 from admin_template import ADMIN_TEMPLATE
 from home_temp import HOME_Temp
 from performance_analytics_temp import Performance_TEMP   
-from customers_stats_temp import Cusomers_TEMP
+from customers_stats_temp import Customers_TEMP
 from cleanup_manager import start_cleanup_thread
 from datetime import datetime
 from psycopg2.extras import RealDictCursor
@@ -367,7 +367,7 @@ def performance_analytics():
 @app.route('/customers-stats')
 def customers_stats():
     """صفحة إحصائيات العملاء مع واجهة منسقة"""
-    return render_template_string(Cusomers_TEMP)
+    return render_template_string(Customers_TEMP)
 
 @app.route('/api/customers-stats')
 def api_customers_stats():
