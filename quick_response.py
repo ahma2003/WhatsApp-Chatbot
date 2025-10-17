@@ -65,22 +65,30 @@ class QuickResponseSystem:
             'اسعار الاستقدام'
         ]
     
-    def _check_gender(self, gender: str) -> bool:
+    def _check_gender(self, gender: str) -> str:
         """
         دالة محسّنة للتحقق من الجنس
         
         Args:
-            gender: الجنس من قاعدة البيانات
+            gender: الجنس من قاعدة البيانات ("ذكر" أو "أنثى")
             
         Returns:
-            bool: True إذا كانت أنثى، False إذا كان ذكر أو غير محدد
+            str: "female" إذا كانت أنثى، "male" إذا كان ذكر، أو None إذا غير محدد
         """
         if not gender:
-            return False
+            return None
         
-        gender_lower = str(gender).lower().strip()
+        gender_str = str(gender).strip()
         
-        # قائمة شاملة لكل الاحتمالات
+        # التحقق المباشر من القيم المتوقعة
+        if gender_str == "أنثى":
+            return "female"
+        elif gender_str == "ذكر":
+            return "male"
+        
+        # في حالة وجود قيم أخرى (احتياطي)
+        gender_lower = gender_str.lower()
+        
         female_values = [
             'female', 'f', 
             'أنثى', 'انثى', 'أنثي', 'انثي',
@@ -88,7 +96,19 @@ class QuickResponseSystem:
             'woman', 'girl', 'lady'
         ]
         
-        return gender_lower in female_values
+        male_values = [
+            'male', 'm',
+            'ذكر', 'ذكور',
+            'رجل', 'شاب',
+            'man', 'boy'
+        ]
+        
+        if gender_lower in female_values:
+            return "female"
+        elif gender_lower in male_values:
+            return "male"
+        
+        return None
     
     def is_greeting_message(self, message: str) -> bool:
         """فحص سريع للرسائل الترحيبية"""
@@ -160,21 +180,20 @@ class QuickResponseSystem:
         
         Args:
             customer_name: اسم العميل (اختياري)
-            gender: نوع العميل ('male', 'female', 'ذكر', 'أنثى') (اختياري)
+            gender: نوع العميل ('ذكر' أو 'أنثى') (اختياري)
         
         Returns:
             str: رسالة الترحيب المخصصة
         """
         # استخدام الدالة المحسّنة للتحقق من الجنس
-        is_female = self._check_gender(gender)
-        print("is female bool {is_female} and gender is {gender}")
+        gender_type = self._check_gender(gender)
         
         # طباعة للتأكد من التعرف الصحيح
-        print(f"🔍 Gender Check: '{gender}' -> is_female={is_female}, name={customer_name}")
+        print(f"🔍 Gender Check: '{gender}' -> type={gender_type}, name={customer_name}")
         
         # رد مخصص للعملاء المسجلين
         if customer_name:
-            if is_female:
+            if gender_type == "female":
                 return f"""أهلاً وسهلاً أختنا {customer_name} الكريمة مرة ثانية 🌟
 
 حياك الله مرة ثانية في مكتب الركائز البشرية للاستقدام
@@ -188,7 +207,7 @@ class QuickResponseSystem:
 • "مساعدة" - للقائمة الكاملة
 
 📞 أو اتصلي: 0556914447"""
-            else:
+            elif gender_type == "male":
                 return f"""أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية 🌟
 
 حياك الله مرة ثانية في مكتب الركائز البشرية للاستقدام
@@ -224,20 +243,19 @@ class QuickResponseSystem:
         
         Args:
             customer_name: اسم العميل (اختياري)
-            gender: نوع العميل ('male', 'female', 'ذكر', 'أنثى') (اختياري)
+            gender: نوع العميل ('ذكر' أو 'أنثى') (اختياري)
         
         Returns:
             str: رسالة شكر مخصصة
         """
         # استخدام الدالة المحسّنة للتحقق من الجنس
-        is_female = self._check_gender(gender)
-        print("is female bool {is_female} and gender is {gender}")
+        gender_type = self._check_gender(gender)
         
         # طباعة للتأكد من التعرف الصحيح
-        print(f"🔍 Gender Check (Thanks): '{gender}' -> is_female={is_female}, name={customer_name}")
+        print(f"🔍 Gender Check (Thanks): '{gender}' -> type={gender_type}, name={customer_name}")
         
         # ردود مخصصة للإناث
-        if customer_name and is_female:
+        if customer_name and gender_type == "female":
             responses = [
                 f"""العفو أختنا {customer_name} الكريمة 🌟
 
@@ -258,7 +276,7 @@ class QuickResponseSystem:
 تواصلي معنا في أي وقت.. نحن هنا لخدمتك! 📞"""
             ]
         # ردود مخصصة للذكور
-        elif customer_name and not is_female:
+        elif customer_name and gender_type == "male":
             responses = [
                 f"""العفو أخونا {customer_name} الكريم 🌟
 
