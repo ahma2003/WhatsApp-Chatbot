@@ -10,11 +10,11 @@ class WhatsAppHandler:
         self.processing_messages = set()
         self.rate_limit = {}
         self.quick_system = quick_system
+        self.last_send_time = {}  # تتبع آخر وقت إرسال لكل رقم
         
         self.ACCESS_TOKEN = ACCESS_TOKEN
         self.PHONE_NUMBER_ID = PHONE_NUMBER_ID
         
-        # معالج القوائم - سيستخدم رسائل نصية بدلاً من Interactive
         self.interactive_menu = InteractiveMenuHandler(self, quick_system)
     
     def is_duplicate_message(self, message_id: str) -> bool:
@@ -33,6 +33,17 @@ class WhatsAppHandler:
                 return True
         self.rate_limit[phone_number] = now
         return False
+    
+    def _wait_before_send(self, to_number: str):
+        """انتظار بين الرسائل لتجنب Rate Limiting من 360Dialog"""
+        now = time.time()
+        if to_number in self.last_send_time:
+            time_since_last = now - self.last_send_time[to_number]
+            if time_since_last < 1.5:  # انتظر 1.5 ثانية على الأقل
+                wait_time = 1.5 - time_since_last
+                print(f"⏳ انتظار {wait_time:.1f}s قبل الإرسال إلى {to_number}")
+                time.sleep(wait_time)
+        self.last_send_time[to_number] = time.time()
     
     def should_show_main_menu(self, user_message: str) -> bool:
         """فحص طلب القائمة الرئيسية"""
@@ -54,12 +65,15 @@ class WhatsAppHandler:
         return False
     
     def send_message(self, to_number: str, message: str) -> bool:
-        """إرسال رسالة نصية عبر 360dialog"""
+        """إرسال رسالة نصية عبر 360dialog مع معالجة Rate Limiting"""
         if not ACCESS_TOKEN:
             print("❌ ACCESS_TOKEN غير موجود")
             return False
         
-        url = "https://waba.360dialog.io/v1/messages"
+        # انتظر قبل الإرسال
+        self._wait_before_send(to_number)
+        
+        url = "https://waba-v2.360dialog.io/messages"
         
         headers = {
             "D360-API-KEY": ACCESS_TOKEN,
@@ -79,23 +93,43 @@ class WhatsAppHandler:
             }
         }
         
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(data), timeout=5)
-            response.raise_for_status()
-            print(f"✅ تم الإرسال إلى {to_number}")
-            return True
-        except requests.exceptions.RequestException as e:
-            print(f"❌ خطأ WhatsApp: {e}")
-            if hasattr(e, 'response') and e.response:
-                print(f"📄 تفاصيل: {e.response.text}")
-            return False
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+                
+                # فحص الرد
+                if response.status_code == 201 or response.status_code == 200:
+                    print(f"✅ تم الإرسال إلى {to_number}")
+                    return True
+                elif response.status_code == 555:
+                    print(f"⚠️ خطأ 555 - محاولة {attempt + 1}/{max_retries}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 * (attempt + 1))  # انتظر أطول مع كل محاولة
+                        continue
+                else:
+                    response.raise_for_status()
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"❌ خطأ في المحاولة {attempt + 1}: {e}")
+                if hasattr(e, 'response') and e.response:
+                    print(f"📄 تفاصيل: {e.response.text}")
+                
+                if attempt < max_retries - 1:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                    
+        return False
     
     def send_image_with_text(self, to_number: str, message: str, image_url: str) -> bool:
         """إرسال صورة مع نص"""
         if not ACCESS_TOKEN:
             return False
         
-        url = "https://waba.360dialog.io/v1/messages"
+        # انتظر قبل الإرسال
+        self._wait_before_send(to_number)
+        
+        url = "https://waba-v2.360dialog.io/messages"
         
         headers = {
             "D360-API-KEY": ACCESS_TOKEN,
@@ -115,66 +149,65 @@ class WhatsAppHandler:
             }
         }
         
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(data), timeout=8)
-            response.raise_for_status()
-            print(f"✅ تم إرسال الصورة إلى {to_number}")
-            return True
-        except requests.exceptions.RequestException as e:
-            print(f"❌ خطأ في الصورة: {e}")
-            return self.send_message(to_number, f"{message}\n\n📞 للحصول على الأسعار: 0556914447")
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, headers=headers, data=json.dumps(data), timeout=10)
+                
+                if response.status_code == 201 or response.status_code == 200:
+                    print(f"✅ تم إرسال الصورة إلى {to_number}")
+                    return True
+                else:
+                    response.raise_for_status()
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"❌ خطأ في إرسال الصورة: {e}")
+                if attempt == max_retries - 1:
+                    # رد احتياطي بالنص فقط
+                    return self.send_message(to_number, f"{message}\n\n📞 للحصول على الأسعار: 0556914447")
+                time.sleep(2)
+                
+        return False
     
     def send_welcome_menu_to_new_customer(self, to_number: str, customer_name: str = None) -> bool:
-        """إرسال قائمة ترحيب نصية للعملاء الجدد"""
+        """إرسال ترحيب بسيط للعملاء - رسالة واحدة فقط"""
         if customer_name:
-            welcome_message = f"""أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية! 🌟
+            welcome_message = f"""أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية في مكتب الركائز البشرية! 🌟
 
-مرحباً بك في مكتب الركائز البشرية للاستقدام
+كيف يمكنني مساعدتك اليوم؟
 
-📋 خدماتنا:
-1️⃣ اكتب "عاملة منزلية" - للحصول على عاملة منزلية
-2️⃣ اكتب "مربية أطفال" - لطلب مربية أطفال
-3️⃣ اكتب "أسعار" - لعرض الأسعار والعروض
-4️⃣ اكتب "تواصل" - للحصول على معلومات التواصل
+📝 يمكنك الكتابة مباشرة:
+• "عاملة منزلية" - للحصول على عاملة
+• "مربية أطفال" - لطلب مربية  
+• "أسعار" - لعرض الأسعار
+• "مساعدة" - للقائمة الكاملة
 
-📞 للتواصل المباشر:
-• 0556914447
-• 0506207444
-• 0537914445
-
-كيف يمكنني مساعدتك اليوم؟ 😊"""
+📞 أو اتصل: 0556914447"""
         else:
             welcome_message = """أهلاً وسهلاً بك في مكتب الركائز البشرية للاستقدام! 🌟
 
-📋 خدماتنا الرئيسية:
-1️⃣ اكتب "عاملة منزلية" - للحصول على عاملة منزلية محترفة
-2️⃣ اكتب "مربية أطفال" - لطلب مربية أطفال مدربة
-3️⃣ اكتب "أسعار" - لعرض الأسعار والعروض الحالية
-4️⃣ اكتب "تواصل" - للحصول على معلومات التواصل
+📝 يمكنك الكتابة:
+• "عاملة منزلية" - للحصول على عاملة محترفة
+• "مربية أطفال" - لطلب مربية مدربة
+• "أسعار" - لعرض الأسعار والعروض
+• "تواصل" - للحصول على أرقام التواصل
+• "مساعدة" - للقائمة الكاملة
 
-📞 أرقام التواصل:
-• 0556914447 (الخط الرئيسي)
-• 0506207444 (خط الطوارئ)
-• 0537914445 (خط المبيعات)
-
-🕒 نحن في خدمتك من 8 صباحاً حتى 10 مساءً
+📞 اتصل الآن: 0556914447
 
 كيف أستطيع مساعدتك؟ 😊"""
         
         return self.send_message(to_number, welcome_message)
     
     def handle_interactive_message(self, interactive_data: dict, phone_number: str) -> bool:
-        """معالجة الردود التفاعلية - حالياً معطلة"""
-        # نظراً لأن Interactive Messages غير مفعلة، سنرد برسالة نصية
-        fallback_message = """عذراً، يبدو أن هناك مشكلة في النظام.
-
-يمكنك الكتابة مباشرة:
+        """معالجة الردود التفاعلية"""
+        fallback_message = """يمكنك الكتابة مباشرة:
 • "عاملة منزلية" - للحصول على عاملة
 • "مربية أطفال" - لطلب مربية
 • "أسعار" - لعرض الأسعار
-• "تواصل" - للتواصل معنا
+• "مساعدة" - للقائمة الكاملة
 
-أو اتصل بنا: 📞 0556914447"""
+أو اتصل: 📞 0556914447"""
         
         return self.send_message(phone_number, fallback_message)
     
@@ -185,12 +218,20 @@ class WhatsAppHandler:
             for msg_id in messages_list[:500]:
                 self.processing_messages.discard(msg_id)
             print(f"🧹 تم تنظيف ذاكرة الرسائل")
+        
+        # تنظيف last_send_time أيضاً
+        if len(self.last_send_time) > 100:
+            # احتفظ بآخر 50 رقم فقط
+            numbers = list(self.last_send_time.keys())
+            for num in numbers[:-50]:
+                del self.last_send_time[num]
     
     def get_handler_stats(self) -> dict:
         """إحصائيات المعالج"""
         return {
             'processing_messages_count': len(self.processing_messages),
             'rate_limited_numbers': len(self.rate_limit),
-            'interactive_menu_available': False,  # معطلة مؤقتاً
+            'tracked_numbers': len(self.last_send_time),
+            'interactive_menu_available': False,
             'whatsapp_config_ready': bool(ACCESS_TOKEN)
         }
