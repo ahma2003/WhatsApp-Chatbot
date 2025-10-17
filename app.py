@@ -215,7 +215,7 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
                 # رسالة افتراضية مع مراعاة الجيندر
                 if customer_name:
                     # التحقق من الجنس مباشرة
-                    if customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']:
+                    if customer_gender == "أنثى":
                         # رد مؤنث
                         bot_response = f"""أهلاً وسهلاً أختنا {customer_name} الكريمة مرة ثانية في مكتب الركائز البشرية! 🌟
 

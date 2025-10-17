@@ -10,21 +10,22 @@ class SmartResponseGenerator:
         
         print(f"🔍 معالجة: '{user_message}' من {phone_number}")
         
-        # جلب معلومات العميل من الذاكرة
+        # جلب معلومات العميل من الذاكرة (مع الجنس)
         customer_info = self.customer_memory.get_customer_info(phone_number)
         customer_name = customer_info.get('name', '') if customer_info else None
+        customer_gender = customer_info.get('gender', '') if customer_info else None
         
-        # 1. أولوية عليا للترحيب (مع التخصيص)
+        # 1. أولوية عليا للترحيب (مع التخصيص حسب الجنس)
         if self.quick_system.is_greeting_message(user_message):
             print(f"⚡ رد ترحيب فوري مخصص")
-            response = self.quick_system.get_welcome_response(customer_name)
+            response = self.quick_system.get_welcome_response(customer_name, customer_gender)
             self.customer_memory.add_conversation_message(phone_number, user_message, response)
             return response, False, None
         
-        # 2. أولوية عليا للشكر (مع التخصيص)
+        # 2. أولوية عليا للشكر (مع التخصيص حسب الجنس)
         if self.quick_system.is_thanks_message(user_message):
             print(f"🙏 رد شكر فوري مخصص")
-            response = self.quick_system.get_thanks_response(customer_name)
+            response = self.quick_system.get_thanks_response(customer_name, customer_gender)
             self.customer_memory.add_conversation_message(phone_number, user_message, response)
             return response, False, None
         
@@ -46,8 +47,12 @@ class SmartResponseGenerator:
             if retrieved_data:
                 response = f"بناءً على معلوماتنا:\n\n{retrieved_data[0]['answer']}\n\nهل يمكنني مساعدتك في شيء آخر؟"
             else:
+                # تخصيص الرد حسب الجنس
                 if customer_name:
-                    response = f"أهلاً بك مرة ثانية أخونا {customer_name} في مكتب الركائز البشرية! 🌟\nسيتواصل معك أحد موظفينا قريباً للمساعدة.\n\nهل تريد معرفة أسعارنا الحالية؟"
+                    if customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']:
+                        response = f"أهلاً بك مرة ثانية أختنا {customer_name} الكريمة في مكتب الركائز البشرية! 🌟\nسيتواصل معك أحد موظفينا قريباً للمساعدة.\n\nهل تريدين معرفة أسعارنا الحالية؟"
+                    else:
+                        response = f"أهلاً بك مرة ثانية أخونا {customer_name} الكريم في مكتب الركائز البشرية! 🌟\nسيتواصل معك أحد موظفينا قريباً للمساعدة.\n\nهل تريد معرفة أسعارنا الحالية؟"
                 else:
                     response = "أهلاً بك في مكتب الركائز البشرية! 🌟\nسيتواصل معك أحد موظفينا قريباً للمساعدة.\n\nهل تريد معرفة أسعارنا الحالية؟"
             
@@ -60,9 +65,12 @@ class SmartResponseGenerator:
             conversation_context = self.customer_memory.get_conversation_context(phone_number)
             customer_summary = self.customer_memory.create_customer_summary(customer_info)
             
-            # تحديد نوع الترحيب حسب العميل
+            # تحديد نوع الترحيب حسب العميل والجنس
             if is_first and customer_name:
-                greeting = f"أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية في مكتب الركائز البشرية للاستقدام! 🌟\n\n"
+                if customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']:
+                    greeting = f"أهلاً وسهلاً أختنا {customer_name} الكريمة مرة ثانية في مكتب الركائز البشرية للاستقدام! 🌟\n\n"
+                else:
+                    greeting = f"أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية في مكتب الركائز البشرية للاستقدام! 🌟\n\n"
             elif is_first:
                 greeting = "أهلاً وسهلاً بك في مكتب الركائز البشرية للاستقدام! 🌟\n\n"
             else:
@@ -103,15 +111,21 @@ class SmartResponseGenerator:
             
         except Exception as e:
             print(f"❌ خطأ في OpenAI: {e}")
-            # رد احتياطي سريع مع التخصيص
+            # رد احتياطي سريع مع التخصيص حسب الجنس
             if retrieved_data:
                 if customer_name:
-                    response = f"عميلنا الكريم أخونا {customer_name}، بناءً على خبرتنا:\n\n{retrieved_data[0]['answer']}\n\nللمزيد من المساعدة، اتصل بنا: 📞 0556914447"
+                    if customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']:
+                        response = f"عميلتنا الكريمة أختنا {customer_name}، بناءً على خبرتنا:\n\n{retrieved_data[0]['answer']}\n\nللمزيد من المساعدة، اتصلي بنا: 📞 0556914447"
+                    else:
+                        response = f"عميلنا الكريم أخونا {customer_name}، بناءً على خبرتنا:\n\n{retrieved_data[0]['answer']}\n\nللمزيد من المساعدة، اتصل بنا: 📞 0556914447"
                 else:
                     response = f"عميلنا العزيز، بناءً على خبرتنا:\n\n{retrieved_data[0]['answer']}\n\nللمزيد من المساعدة، اتصل بنا: 📞 0556914447"
             else:
                 if customer_name:
-                    response = f"أهلاً أخونا {customer_name}! 🌟 سيتواصل معك أحد متخصصينا قريباً.\n\nهل تريد معرفة عروضنا الحالية؟"
+                    if customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']:
+                        response = f"أهلاً أختنا {customer_name} الكريمة! 🌟 سيتواصل معك أحد متخصصينا قريباً.\n\nهل تريدين معرفة عروضنا الحالية؟"
+                    else:
+                        response = f"أهلاً أخونا {customer_name} الكريم! 🌟 سيتواصل معك أحد متخصصينا قريباً.\n\nهل تريد معرفة عروضنا الحالية؟"
                 else:
                     response = "أهلاً بك! 🌟 سيتواصل معك أحد متخصصينا قريباً.\n\nهل تريد معرفة عروضنا الحالية؟"
             
