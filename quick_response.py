@@ -167,6 +167,7 @@ class QuickResponseSystem:
         """
         # استخدام الدالة المحسّنة للتحقق من الجنس
         is_female = self._check_gender(gender)
+        print("is female bool {is_female} and gender is {gender}")
         
         # طباعة للتأكد من التعرف الصحيح
         print(f"🔍 Gender Check: '{gender}' -> is_female={is_female}, name={customer_name}")
@@ -230,6 +231,7 @@ class QuickResponseSystem:
         """
         # استخدام الدالة المحسّنة للتحقق من الجنس
         is_female = self._check_gender(gender)
+        print("is female bool {is_female} and gender is {gender}")
         
         # طباعة للتأكد من التعرف الصحيح
         print(f"🔍 Gender Check (Thanks): '{gender}' -> is_female={is_female}, name={customer_name}")
