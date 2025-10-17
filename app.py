@@ -173,7 +173,7 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
         # جلب معلومات العميل من الذاكرة (بما فيها الجيندر)
         customer_info = customer_memory.get_customer_info(phone_number)
         customer_name = customer_info.get('name', '') if customer_info else None
-        customer_gender = customer_info.get('gender', '') if customer_info else None  # ← إضافة جديدة
+        customer_gender = customer_info.get('gender', '') if customer_info else None
         if customer_info:
             print(f"👤 عميل مسجل: {customer_name or 'غير معروف'} ({customer_gender or 'غير محدد'})")
         
@@ -203,12 +203,9 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
         else:
             # نظام احتياطي أساسي مع الذاكرة
             if quick_system.is_greeting_message(user_message):
-                # ← هنا التعديل: إرسال الجيندر للدالة
                 bot_response = quick_system.get_welcome_response(customer_name, customer_gender)
-                
                 success = whatsapp_handler.send_message(phone_number, bot_response)
             elif quick_system.is_thanks_message(user_message):
-                # ← هنا كمان إرسال الجيندر
                 bot_response = quick_system.get_thanks_response(customer_name, customer_gender)
                 success = whatsapp_handler.send_message(phone_number, bot_response)
             elif quick_system.is_price_inquiry(user_message):
@@ -216,10 +213,10 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
                 success = whatsapp_handler.send_image_with_text(phone_number, bot_response, image_url)
             else:
                 # رسالة افتراضية مع مراعاة الجيندر
-                is_female = customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']
-                
                 if customer_name:
-                    if is_female:
+                    # التحقق من الجنس مباشرة
+                    if customer_gender and customer_gender.lower() in ['female', 'أنثى', 'انثى', 'f', 'انثي', 'أنثي']:
+                        # رد مؤنث
                         bot_response = f"""أهلاً وسهلاً أختنا {customer_name} الكريمة مرة ثانية في مكتب الركائز البشرية! 🌟
 
 سيتواصل معك متخصص قريباً.
@@ -228,6 +225,7 @@ def process_user_message_with_memory(phone_number: str, user_message: str):
 
 📞 0556914447"""
                     else:
+                        # رد مذكر (افتراضي)
                         bot_response = f"""أهلاً وسهلاً أخونا {customer_name} الكريم مرة ثانية في مكتب الركائز البشرية! 🌟
 
 سيتواصل معك متخصص قريباً.
